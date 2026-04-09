@@ -1,0 +1,66 @@
+[project]
+name = "fraudguard-ml"
+version = "2.1.0"
+description = "Production-grade credit card fraud detection: XGBoost + FastAPI + Streamlit + MLflow"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+
+# ── Ruff (linter + formatter) ─────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    ".git", "__pycache__", ".venv", "mlruns", "models",
+    "data", "reports", "notebooks",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "SIM", # simplify
+]
+ignore = [
+    "E501",  # line too long — ruff format handles this
+    "B008",  # function calls in default arguments (FastAPI uses these)
+    "SIM108", # ternary operator (readability preference)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "api", "dashboard", "simulation", "monitoring"]
+
+# ── Mypy (type checker) ───────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+no_strict_optional = true
+warn_unused_ignores = true
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = ["xgboost.*", "shap.*", "mlflow.*", "optuna.*", "imblearn.*"]
+ignore_missing_imports = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src", "api", "simulation", "monitoring"]
+omit = ["*/tests/*", "*/notebooks/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 60

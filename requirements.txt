@@ -1,0 +1,49 @@
+# ── FraudGuard ML — Python Dependencies ────────────────────────────────────────
+#
+# Minimum versions are specified to prevent regressions from old packages while
+# still allowing forward compatibility. Tested on Python 3.10, 3.11, 3.12.
+#
+# Install:   pip install -r requirements.txt
+# Dev extras: pip install ruff mypy bandit pytest-cov
+
+# ── Core ML ─────────────────────────────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.4.0
+imbalanced-learn>=0.11.0
+xgboost>=2.0.0
+joblib>=1.3.0
+scipy>=1.11.0              # KS test in drift detector
+
+# ── Hyperparameter tuning (optional — set tuning.enabled: true in config.yaml) ──
+optuna>=3.4.0
+
+# ── Explainability ───────────────────────────────────────────────────────────────
+shap>=0.44.0
+
+# ── Visualisation ────────────────────────────────────────────────────────────────
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# ── Config parsing ───────────────────────────────────────────────────────────────
+pyyaml>=6.0
+
+# ── Inference API ────────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9    # required by FastAPI for file upload endpoints
+pydantic>=2.6.0
+
+# ── Analytics dashboard ──────────────────────────────────────────────────────────
+streamlit>=1.32.0
+
+# ── Experiment tracking ──────────────────────────────────────────────────────────
+mlflow>=2.11.0
+
+# ── HTTP client (simulator, dashboard, scripts) ──────────────────────────────────
+requests>=2.31.0
+
+# ── Testing ──────────────────────────────────────────────────────────────────────
+pytest>=8.0.0
+pytest-cov>=4.1.0
+httpx>=0.27.0              # required by FastAPI TestClient

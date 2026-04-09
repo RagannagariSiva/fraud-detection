@@ -1,0 +1,134 @@
+version: "3.9"
+
+# ── FraudGuard ML — Full-Stack Docker Compose ─────────────────────────────────
+#
+# Services
+# --------
+#   train      — One-shot training job (runs pipeline then exits)
+#   api        — FastAPI inference service    → http://localhost:8000
+#   dashboard  — Streamlit analytics UI       → http://localhost:8501
+#   mlflow     — MLflow experiment tracker    → http://localhost:5000
+#   simulator  — Real-time transaction stream (optional, manual start)
+#
+# Quick start
+# -----------
+#   docker compose run --rm train          # Step 1: train the model
+#   docker compose up api dashboard mlflow # Step 2: start all services
+#
+# Full stack (all at once)
+# ------------------------
+#   docker compose up --build
+#
+# Run the simulator against the live API
+# ---------------------------------------
+#   docker compose run --rm simulator
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common: &common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - MLFLOW_TRACKING_URI=http://mlflow:5000
+  volumes:
+    - ./models:/app/models
+    - ./data:/app/data
+    - ./reports:/app/reports
+    - ./logs:/app/logs
+    - ./mlruns:/app/mlruns
+
+services:
+
+  # ── 1. Training job ───────────────────────────────────────────────────────
+  train:
+    <<: *common
+    container_name: fraud_train
+    command: python main.py
+    restart: "no"
+
+  # ── 2. FastAPI inference service ──────────────────────────────────────────
+  api:
+    <<: *common
+    container_name: fraud_api
+    command: >
+      uvicorn api.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 2
+        --log-level info
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+    depends_on:
+      train:
+        condition: service_completed_successfully
+
+  # ── 3. Streamlit dashboard ────────────────────────────────────────────────
+  dashboard:
+    <<: *common
+    container_name: fraud_dashboard
+    command: >
+      streamlit run dashboard/app.py
+        --server.port 8501
+        --server.address 0.0.0.0
+        --server.headless true
+        --server.enableCORS false
+        --server.enableXsrfProtection false
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ── 4. MLflow experiment tracker ──────────────────────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    container_name: fraud_mlflow
+    working_dir: /app
+    command: >
+      sh -c "pip install mlflow --quiet &&
+             mlflow server
+               --host 0.0.0.0
+               --port 5000
+               --backend-store-uri /app/mlruns
+               --default-artifact-root /app/mlruns"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/app/mlruns
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── 5. Real-time transaction simulator (optional) ─────────────────────────
+  simulator:
+    <<: *common
+    container_name: fraud_simulator
+    command: >
+      python simulation/real_time_transactions.py
+        --api-url http://api:8000
+        --tps 2
+        --duration 120
+        --fraud-rate 0.05
+    restart: "no"
+    depends_on:
+      api:
+        condition: service_healthy
