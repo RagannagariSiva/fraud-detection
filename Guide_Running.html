@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Fraud Detection ML</title>
+<style>
+  body{font-family:sans-serif;max-width:760px;margin:36px auto;padding:0 18px;color:#222;font-size:14px;line-height:1.6}
+  h1{font-size:20px;margin-bottom:2px}
+  .sub{color:#666;margin-bottom:24px;font-size:13px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#555;border-bottom:1px solid #ddd;padding-bottom:5px;margin:28px 0 12px}
+  .step{border:1px solid #ddd;border-radius:5px;padding:12px 14px;margin-bottom:10px}
+  .step-title{font-weight:bold;margin-bottom:4px}
+  .step-note{font-size:12px;color:#666;margin-bottom:6px}
+  pre{background:#f5f5f5;border:1px solid #ddd;border-radius:3px;padding:10px;font-size:12px;overflow-x:auto;white-space:pre-wrap;margin-top:4px}
+  .os-block{display:none}.os-block.show{display:block}
+  .warn{background:#fffbea;border:1px solid #e8c840;border-radius:3px;padding:7px 10px;font-size:12px;margin-top:7px}
+  .ok{background:#f0fff4;border:1px solid #5cb878;border-radius:3px;padding:7px 10px;font-size:12px;margin-top:7px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  td,th{border:1px solid #ddd;padding:7px 10px;text-align:left}
+  th{background:#f5f5f5;font-weight:600}
+  a{color:#1a5ce6}
+  code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:12px}
+  .num{display:inline-block;background:#222;color:#fff;border-radius:50%;width:20px;height:20px;text-align:center;line-height:20px;font-size:11px;font-weight:bold;margin-right:6px}
+</style>
+</head>
+<body>
+
+<h1>Fraud Detection ML</h1>
+<p class="sub">XGBoost · FastAPI · Streamlit · MLflow · Docker &nbsp;|&nbsp; Python 3.9+</p>
+
+<div style="margin-bottom:18px">
+  <strong style="font-size:13px">Select OS:</strong>&nbsp;&nbsp;
+  <label><input type="radio" name="os" value="mac" checked onchange="switchOS(this.value)"> Mac</label>
+  &nbsp;&nbsp;
+  <label><input type="radio" name="os" value="win" onchange="switchOS(this.value)"> Windows</label>
+</div>
+
+<!-- ONE TIME SETUP -->
+<h2>One-Time Setup</h2>
+
+<div class="step">
+  <div class="step-title"><span class="num">1</span>Go to project folder</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection</pre></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">2</span>Create virtual environment</div>
+  <div class="os-block mac show"><pre>python3 -m venv venv</pre></div>
+  <div class="os-block win"><pre>python -m venv venv</pre></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">3</span>Activate and install dependencies</div>
+  <div class="os-block mac show"><pre>source venv/bin/activate
+pip install -r requirements.txt</pre></div>
+  <div class="os-block win"><pre>venv\Scripts\activate
+pip install -r requirements.txt</pre></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">4</span>Place the dataset (creditcard.csv from Kaggle)</div>
+  <div class="os-block mac show"><pre>mkdir -p data/raw
+mv ~/Downloads/creditcard.csv data/raw/creditcard.csv</pre></div>
+  <div class="os-block win"><pre>mkdir data\raw
+move %USERPROFILE%\Downloads\creditcard.csv data\raw\creditcard.csv</pre></div>
+  <div class="ok">Verify: <code>data/raw/creditcard.csv</code> must be a file, not a folder.</div>
+</div>
+
+<!-- RESET -->
+<h2>Reset Dashboard to Zero</h2>
+<div class="step">
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+rm -f data/fraud_stats.db
+echo -n "" > logs/fraud_alerts.jsonl
+echo -n "" > logs/transactions.jsonl</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+del data\fraud_stats.db
+type nul > logs\fraud_alerts.jsonl
+type nul > logs\transactions.jsonl</pre></div>
+  <div class="ok">Then restart Streamlit — dashboard resets to 0.</div>
+</div>
+
+<!-- TERMINALS -->
+<h2>Every Run — 5 Terminals in This Exact Order</h2>
+
+<div class="step">
+  <div class="step-title"><span class="num">T1</span>Train the model</div>
+  <div class="step-note">Run once. Wait for it to finish before T2.</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+source venv/bin/activate
+python main.py</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+venv\Scripts\activate
+python main.py</pre></div>
+  <div class="ok">Done when you see: PIPELINE COMPLETE</div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">T1b</span>Generate fraud samples</div>
+  <div class="step-note">Run once in same terminal after T1 finishes.</div>
+  <div class="os-block mac show"><pre>python scripts/generate_fraud_samples.py</pre></div>
+  <div class="os-block win"><pre>python scripts\generate_fraud_samples.py</pre></div>
+  <div class="ok">Done when you see: Saved 492 real fraud rows to data/processed/fraud_samples.pkl</div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">T2</span>Start the API — keep running</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+source venv/bin/activate
+uvicorn api.main:app --host 0.0.0.0 --port 8000</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+venv\Scripts\activate
+uvicorn api.main:app --host 0.0.0.0 --port 8000</pre></div>
+  <div class="ok">API running at <a href="http://localhost:8000/docs">http://localhost:8000/docs</a></div>
+  <div class="warn">Port 8000 busy?
+    <div class="os-block mac show"><pre>lsof -ti:8000 | xargs kill -9</pre></div>
+    <div class="os-block win"><pre>netstat -ano | findstr :8000
+taskkill /PID &lt;PID&gt; /F</pre></div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">T3</span>Start the dashboard — keep running</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+source venv/bin/activate
+streamlit run dashboard/app.py</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+venv\Scripts\activate
+streamlit run dashboard\app.py</pre></div>
+  <div class="ok">Dashboard at <a href="http://localhost:8501">http://localhost:8501</a></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">T4</span>Start MLflow — keep running</div>
+  <div class="step-note">Always port 5001. Port 5000 is blocked on Mac by AirPlay.</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+source venv/bin/activate
+mlflow ui --port 5001</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+venv\Scripts\activate
+mlflow ui --port 5001</pre></div>
+  <div class="ok">MLflow at <a href="http://127.0.0.1:5001">http://127.0.0.1:5001</a></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">T5</span>Start simulator — keep running</div>
+  <div class="step-note">Start after T2 and T3 are running.</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+source venv/bin/activate
+python simulation/real_time_transactions.py --tps 2 --duration 0 --fraud-rate 0.05</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+venv\Scripts\activate
+python simulation\real_time_transactions.py --tps 2 --duration 0 --fraud-rate 0.05</pre></div>
+  <div class="ok">Numbers increment from 0. Alert volume graph appears after ~3 minutes.</div>
+</div>
+
+<!-- DOCKER -->
+<h2>Docker</h2>
+
+<div class="step">
+  <div class="step-title"><span class="num">1</span>Confirm Docker is ready</div>
+  <pre>docker ps</pre>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">2</span>Build and start</div>
+  <div class="os-block mac show"><pre>cd ~/Documents/fraud-detection
+docker-compose up --build -d</pre></div>
+  <div class="os-block win"><pre>cd %USERPROFILE%\Documents\fraud-detection
+docker-compose up --build -d</pre></div>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="num">3</span>Check / Logs / Stop</div>
+  <pre>docker ps
+docker-compose logs -f
+docker-compose down</pre>
+</div>
+
+<!-- BROWSER URLS -->
+<h2>Browser URLs</h2>
+<table>
+  <tr><th>Service</th><th>URL</th></tr>
+  <tr><td>Dashboard</td><td><a href="http://localhost:8501">localhost:8501</a></td></tr>
+  <tr><td>API Swagger</td><td><a href="http://localhost:8000/docs">localhost:8000/docs</a></td></tr>
+  <tr><td>API Health</td><td><a href="http://localhost:8000/health">localhost:8000/health</a></td></tr>
+  <tr><td>MLflow</td><td><a href="http://127.0.0.1:5001">127.0.0.1:5001</a></td></tr>
+</table>
+
+<script>
+function switchOS(os){
+  document.querySelectorAll('.os-block').forEach(el => el.classList.remove('show'));
+  document.querySelectorAll('.os-block.'+os).forEach(el => el.classList.add('show'));
+}
+</script>
+</body>
+</html>

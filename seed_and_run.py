@@ -14,6 +14,8 @@ print(f"Loaded: {len(df):,} rows | Fraud: {len(fraud_df)} | Legit: {len(legit_df
 
 # ── SEED: replay last 2 hours of real data ──────────────────────────────
 print("Seeding historical data from real CSV...")
+TXN.parent.mkdir(parents=True, exist_ok=True)
+ALERT.parent.mkdir(parents=True, exist_ok=True)
 TXN.write_text("")
 ALERT.write_text("")
 
@@ -22,7 +24,10 @@ seed_start = now - timedelta(hours=2)
 
 # Take first 7200 rows from CSV as historical (real transactions)
 seed_df = df.head(7200).copy()
-txn_lines = [s()):
+txn_lines = []    # FIX 1: was broken/truncated — correctly initialised as empty list
+alert_lines = []
+
+for i, (_, row) in enumerate(seed_df.iterrows()):   # FIX 2: restored correct for-loop
     ts = (seed_start + timedelta(seconds=i)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     is_fraud = int(row["Class"]) == 1
 
@@ -78,7 +83,8 @@ while True:
     n_fraud = 1 if random.random() < 0.0172 else 0
 
     lines = []
-    for _, uniform(0.0001, 0.05), 6)
+    for _, row in legit_df.sample(n_legit).iterrows():   # FIX 3: restored correct for-loop
+        prob = round(random.uniform(0.0001, 0.05), 6)
         lines.append(json.dumps({
             "timestamp": now_str,
             "transaction_id": "TXN-" + str(random.randint(100000000000, 999999999999)),

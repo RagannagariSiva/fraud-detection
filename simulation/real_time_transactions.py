@@ -39,6 +39,10 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).parent.parent))
+from simulation.persistent_store import increment_stat, set_stat, get_all_stats, insert_transaction
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
 
@@ -324,6 +328,34 @@ def run_simulation(
                         stats["injected_flagged"] += 1
 
                 _print_result(txn, result, stats["total"])
+
+                # ── Persist to SQLite (survives restarts) ──────────────
+                fraud_prob  = result.get("probability", 0.0)
+                risk_tier   = result.get("risk_tier", "UNKNOWN")
+                is_fraud = result.get("prediction") == "fraud"
+                amount      = txn.features.get("Amount", 0.0)
+
+                insert_transaction(
+                    txn.transaction_id, is_fraud, fraud_prob, amount, risk_tier
+                )
+                increment_stat("total_alerts", 1)
+                increment_stat("total_amount", amount)
+
+                if fraud_prob > 0.8:
+                    increment_stat("critical", 1)
+                elif fraud_prob > 0.5:
+                    increment_stat("high_risk", 1)
+
+                if is_fraud:
+                    increment_stat("confirmed_fraud", 1)
+                    increment_stat("fraud_exposure", amount)
+
+                # Welford's running average for fraud probability
+                all_stats = get_all_stats()
+                total_so_far = int(all_stats.get("total_alerts", 1))
+                prev_avg = all_stats.get("avg_fraud_prob", 0.0)
+                new_avg  = prev_avg + (fraud_prob - prev_avg) / total_so_far
+                set_stat("avg_fraud_prob", new_avg)
 
             # Print rolling summary
             if stats["total"] % summary_every == 0:
