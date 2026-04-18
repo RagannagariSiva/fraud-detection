@@ -64,3 +64,9 @@ reports/coverage_html/
 # Temp files
 /tmp/
 *.tmp
+*.pem
+*-key.pem
+data/fraud_stats.db
+data/*.db
+logs/
+Guide_Running.html
