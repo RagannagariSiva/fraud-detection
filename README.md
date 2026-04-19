@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ Fraud Detection System — ML
+# Fraud Detection System — ML
 
 **Production-grade credit card fraud detection built end-to-end.**
 From raw transaction data → live inference API → real-time dashboard → drift monitoring → automated retraining.
@@ -19,7 +19,7 @@ From raw transaction data → live inference API → real-time dashboard → dri
 
 ---
 
-## 📊 Key Results
+## Key Results
 
 | Metric | Value |
 |:---|:---:|
@@ -38,21 +38,20 @@ From raw transaction data → live inference API → real-time dashboard → dri
 
 ---
 
-## 🔴 Live Dashboard
+## Live Dashboard
 
 > Click the image below to open the live Streamlit dashboard →
 
-<div align="center">
+<div align="center" style="border: 2px solid #ccc; padding: 10px; border-radius: 10px;">
 
 [![Live Dashboard — Click to Open](imgs/DashBord.png)](https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/)
 
-**[🚀 Open Live Dashboard](https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/)**
 
 </div>
 
 ---
 
-## ⚡ Live Working — Fraud Detection Pages
+## Live Working — Fraud Detection Pages
 
 Three core views that power the detection system:
 
@@ -63,7 +62,7 @@ Three core views that power the detection system:
     <td width="33%" align="center">
       <img src="imgs/DashBord.png" width="100%" alt="Dashboard Overview"/>
       <br/><br/>
-      <b>🏠 Dashboard Overview</b><br/>
+      <b> Dashboard Overview</b><br/>
       Total alerts · Critical & high-risk counts · Average fraud probability · Financial exposure — all in real time.
     </td>
     <td width="33%" align="center">
@@ -75,7 +74,7 @@ Three core views that power the detection system:
     <td width="33%" align="center">
       <img src="imgs/Machine%20Learning.png" width="100%" alt="Machine Learning Model Analysis"/>
       <br/><br/>
-      <b>🤖 Machine Learning Analysis</b><br/>
+      <b> Machine Learning Analysis</b><br/>
       PR curves · ROC curves · Confusion matrix · SHAP feature importance plots.
     </td>
   </tr>
@@ -83,7 +82,7 @@ Three core views that power the detection system:
 
 ---
 
-## 🖼️ Dashboard — All Screen References
+##  Dashboard — All Screen References
 
 All dashboard pages shown below, arranged two per row:
 
@@ -144,7 +143,7 @@ All dashboard pages shown below, arranged two per row:
     </td>
     <td width="50%" align="center">
       <br/><br/><br/><br/>
-      <b>📦 Dataset</b><br/>
+      <b> Dataset</b><br/>
       <a href="https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud">Credit Card Fraud Detection</a> by ULB Machine Learning Group.<br/>
       284,807 transactions · 492 fraud cases · 0.172% fraud rate.<br/>
       Download from Kaggle → place at <code>data/raw/creditcard.csv</code>
@@ -154,7 +153,7 @@ All dashboard pages shown below, arranged two per row:
 
 ---
 
-## 🧠 Why This Is Production-Grade
+## Why This Is Production-Grade
 
 These are the engineering decisions that separate a real deployed system from a notebook experiment:
 
@@ -177,7 +176,7 @@ Both run on every drift check.
 
 ---
 
-## 📈 Model Comparison
+## Model Comparison
 
 | Model | PR-AUC | ROC-AUC | Recall | Precision | F1 |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -189,7 +188,7 @@ XGBoost is the active model — loaded at API startup and used for all predictio
 
 ---
 
-## 💰 Business Impact
+## Business Impact
 
 *Threshold: 0.40 · Avg fraud loss: $80 · False positive review cost: $5*
 
@@ -203,7 +202,7 @@ XGBoost is the active model — loaded at API startup and used for all predictio
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
 ╔══════════════════════════════════╗    ╔══════════════════════════════════╗
@@ -230,7 +229,7 @@ XGBoost is the active model — loaded at API startup and used for all predictio
 
 ---
 
-## 🔌 API Reference
+##  API Reference
 
 **Base URL:** `http://localhost:8000` &nbsp;|&nbsp; **Swagger UI:** `http://localhost:8000/docs`
 
@@ -274,7 +273,7 @@ curl -s -X POST http://localhost:8000/predict \
 
 ---
 
-## 🚀 Setup & Running
+## Setup & Running
 
 **Requirements:** Python 3.10+
 
@@ -329,7 +328,7 @@ make help        # Full command reference
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 fraud-detection/
@@ -360,7 +359,7 @@ fraud-detection/
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technologies |
 |:---|:---|
