@@ -137,7 +137,7 @@ All dashboard pages shown below, arranged two per row:
   <tr>
     <td width="50%" align="center">
       <img src="imgs/Screen%20short-7.png" width="100%" alt="Screenshot 7"/>
-      <br/><br/>
+      <br/><br/><center>
       <b>Screenshot 7 — Model Health</b><br/>
       Live model health status — prediction count, uptime, scaler and model load confirmation.
     </td>
@@ -150,6 +150,7 @@ All dashboard pages shown below, arranged two per row:
     </td>
   </tr>
 </table>
+<
 
 ---
 
