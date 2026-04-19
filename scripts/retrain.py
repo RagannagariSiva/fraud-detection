@@ -40,7 +40,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import shutil
 import sys
 import time
@@ -58,14 +57,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-CONFIG_PATH    = "config/config.yaml"
-MODEL_DIR      = Path("models")
-REPORT_DIR     = Path("reports")
+CONFIG_PATH = "config/config.yaml"
+MODEL_DIR = Path("models")
+REPORT_DIR = Path("reports")
 RETRAIN_REPORT = REPORT_DIR / "retraining_report.json"
-BACKUP_DIR     = MODEL_DIR / "backup"
+BACKUP_DIR = MODEL_DIR / "backup"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _load_config() -> dict:
     with open(CONFIG_PATH) as f:
@@ -113,8 +113,9 @@ def _check_drift(cfg: dict) -> bool:
     Returns True if significant drift is detected (recommend retrain).
     """
     try:
-        from src.monitoring.drift_detector import DriftDetector
         import pandas as pd
+
+        from src.monitoring.drift_detector import DriftDetector
 
         baseline_path = cfg["data"]["raw_path"]
         # In production this would be a separate rolling incoming data file
@@ -122,10 +123,10 @@ def _check_drift(cfg: dict) -> bool:
         df = pd.read_csv(baseline_path)
         midpoint = len(df) // 2
         baseline_df = df.iloc[:midpoint]
-        current_df  = df.iloc[midpoint:]
+        current_df = df.iloc[midpoint:]
 
         detector = DriftDetector.from_training_data(baseline_df)
-        report   = detector.check(current_df)
+        report = detector.check(current_df)
         logger.info(report.summary())
         return report.overall_drift_detected
     except Exception as exc:
@@ -137,6 +138,7 @@ def _send_notification(webhook_url: str, payload: dict) -> None:
     """Send a Slack-compatible webhook notification."""
     try:
         import requests
+
         status_emoji = "✅" if payload.get("promoted") else "⚠️"
         text = (
             f"{status_emoji} *FraudGuard ML — Retraining Complete*\n"
@@ -154,11 +156,12 @@ def _send_notification(webhook_url: str, payload: dict) -> None:
 
 # ── Main retraining logic ─────────────────────────────────────────────────────
 
+
 def retrain(
-    check_drift:     bool  = False,
+    check_drift: bool = False,
     min_improvement: float = 0.0,
-    dry_run:         bool  = False,
-    slack_webhook:   str | None = None,
+    dry_run: bool = False,
+    slack_webhook: str | None = None,
 ) -> dict:
     """
     Run the full retraining pipeline.
@@ -180,18 +183,18 @@ def retrain(
     cfg = _load_config()
 
     report: dict = {
-        "started_at":        datetime.utcnow().isoformat() + "Z",
-        "config_path":       CONFIG_PATH,
-        "check_drift":       check_drift,
-        "min_improvement":   min_improvement,
-        "dry_run":           dry_run,
-        "drift_detected":    None,
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "config_path": CONFIG_PATH,
+        "check_drift": check_drift,
+        "min_improvement": min_improvement,
+        "dry_run": dry_run,
+        "drift_detected": None,
         "retrain_triggered": False,
-        "old_pr_auc":        None,
-        "new_pr_auc":        None,
-        "promoted":          False,
-        "reason":            "",
-        "duration_seconds":  0,
+        "old_pr_auc": None,
+        "new_pr_auc": None,
+        "promoted": False,
+        "reason": "",
+        "duration_seconds": 0,
     }
 
     # ── Step 1: Check drift ────────────────────────────────────────────────────
@@ -213,8 +216,8 @@ def retrain(
     # ── Step 2: Capture current model metrics ─────────────────────────────────
     logger.info("Step 2/4: Recording current model metrics...")
     primary_model = cfg["training"].get("primary_model", "xgboost")
-    current_meta  = _load_current_metrics(f"{primary_model}_model")
-    old_pr_auc    = float(current_meta.get("val_pr_auc", 0.0))
+    current_meta = _load_current_metrics(f"{primary_model}_model")
+    old_pr_auc = float(current_meta.get("val_pr_auc", 0.0))
     report["old_pr_auc"] = old_pr_auc
     logger.info("Current model PR-AUC: %.4f", old_pr_auc)
 
@@ -229,10 +232,12 @@ def retrain(
 
     logger.info("Step 3/4: Running training pipeline...")
     try:
-        from src.training.pipeline import load_config as _lc, run_pipeline, setup_logging
+        from src.training.pipeline import load_config as _lc
+        from src.training.pipeline import run_pipeline, setup_logging
+
         pipeline_cfg = _lc(CONFIG_PATH)
         setup_logging(pipeline_cfg["training"]["log_path"])
-        df_results = run_pipeline(pipeline_cfg)
+        run_pipeline(pipeline_cfg)
         logger.info("Pipeline complete.")
     except Exception as exc:
         logger.exception("Training pipeline failed: %s", exc)
@@ -247,22 +252,26 @@ def retrain(
 
     # ── Step 4: Compare and promote ───────────────────────────────────────────
     logger.info("Step 4/4: Evaluating new model...")
-    new_meta    = _load_current_metrics(f"{primary_model}_model")
-    new_pr_auc  = float(new_meta.get("val_pr_auc", 0.0))
+    new_meta = _load_current_metrics(f"{primary_model}_model")
+    new_pr_auc = float(new_meta.get("val_pr_auc", 0.0))
     report["new_pr_auc"] = new_pr_auc
 
     improvement = new_pr_auc - old_pr_auc
     logger.info(
         "New PR-AUC: %.4f | Old PR-AUC: %.4f | Δ = %+.4f",
-        new_pr_auc, old_pr_auc, improvement,
+        new_pr_auc,
+        old_pr_auc,
+        improvement,
     )
 
     if dry_run:
         report["promoted"] = False
-        report["reason"]   = f"Dry run — new model NOT promoted (would gain {improvement:+.4f} PR-AUC)."
+        report["reason"] = (
+            f"Dry run — new model NOT promoted (would gain {improvement:+.4f} PR-AUC)."
+        )
     elif improvement >= min_improvement:
         report["promoted"] = True
-        report["reason"]   = (
+        report["reason"] = (
             f"New model promoted ✅ (PR-AUC: {old_pr_auc:.4f} → {new_pr_auc:.4f}, "
             f"Δ={improvement:+.4f} ≥ min={min_improvement:.4f})"
         )
@@ -272,11 +281,12 @@ def retrain(
         if backup_ts:
             logger.info(
                 "New model NOT promoted (Δ=%.4f < min=%.4f). Restoring previous model.",
-                improvement, min_improvement,
+                improvement,
+                min_improvement,
             )
             _restore_backup(backup_ts)
         report["promoted"] = False
-        report["reason"]   = (
+        report["reason"] = (
             f"Previous model retained (Δ={improvement:+.4f} < min={min_improvement:.4f})"
         )
 
@@ -291,7 +301,7 @@ def retrain(
 
 def _write_report(report: dict, t_start: float) -> None:
     report["duration_seconds"] = round(time.time() - t_start, 1)
-    report["completed_at"]     = datetime.utcnow().isoformat() + "Z"
+    report["completed_at"] = datetime.utcnow().isoformat() + "Z"
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     with open(RETRAIN_REPORT, "w") as f:
         json.dump(report, f, indent=2)
@@ -299,19 +309,29 @@ def _write_report(report: dict, t_start: float) -> None:
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Automated model retraining for the FraudGuard ML platform",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--check-drift",    action="store_true",
-                   help="Only retrain if data drift is detected")
-    p.add_argument("--min-improvement", type=float, default=0.0,
-                   help="Minimum PR-AUC improvement required to promote new model")
-    p.add_argument("--dry-run",        action="store_true",
-                   help="Run pipeline but don't replace production model files")
-    p.add_argument("--slack-webhook",  default=None,
-                   help="Slack incoming webhook URL for result notification")
+    p.add_argument(
+        "--check-drift", action="store_true", help="Only retrain if data drift is detected"
+    )
+    p.add_argument(
+        "--min-improvement",
+        type=float,
+        default=0.0,
+        help="Minimum PR-AUC improvement required to promote new model",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run pipeline but don't replace production model files",
+    )
+    p.add_argument(
+        "--slack-webhook", default=None, help="Slack incoming webhook URL for result notification"
+    )
     return p.parse_args()
 
 

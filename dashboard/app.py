@@ -9,17 +9,18 @@ Run: streamlit run dashboard/app.py
 from __future__ import annotations
 
 import json
+import sys as _sys
 import time
+from pathlib import Path as _Path
+
+_sys.path.insert(0, str(_Path(__file__).parent.parent))
 import sys as _sys
 from pathlib import Path as _Path
-_sys.path.insert(0, str(_Path(__file__).parent.parent))
+
 from simulation.persistent_store import get_all_stats as _get_all_stats
-import sys as _sys
-from pathlib import Path as _Path
+
 _sys.path.insert(0, str(_Path(__file__).parent.parent))
-from simulation.persistent_store import get_all_stats
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -27,14 +28,17 @@ import streamlit as st
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     MPL_OK = True
 except ImportError:
     MPL_OK = False
 
 try:
     import requests
+
     REQUESTS_OK = True
 except ImportError:
     REQUESTS_OK = False
@@ -47,7 +51,8 @@ st.set_page_config(
 
 # Minimal, safe CSS — only touches things Streamlit cannot do natively.
 # No custom number rendering. No font-variant tricks. No complex HTML tables.
-st.markdown("""
+st.markdown(
+    """
 <style>
   .block-container {
     padding-top: 2rem !important;
@@ -243,55 +248,102 @@ st.markdown("""
     border-bottom: 1px solid #eaeef2;
   }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-API_URL    = "http://localhost:8000"
-MODEL_DIR  = Path("models")
-LOGS_DIR   = Path("logs")
-ALERT_LOG  = LOGS_DIR / "fraud_alerts.jsonl"
-TXN_LOG    = LOGS_DIR / "transactions.jsonl"
+API_URL = "http://localhost:8000"
+MODEL_DIR = Path("models")
+LOGS_DIR = Path("logs")
+ALERT_LOG = LOGS_DIR / "fraud_alerts.jsonl"
+TXN_LOG = LOGS_DIR / "transactions.jsonl"
 REPORT_DIR = Path("reports/figures")
 
 TIER_COLOR = {
     "CRITICAL": "#cf222e",
-    "HIGH":     "#bc4c00",
-    "MEDIUM":   "#9a6700",
-    "LOW":      "#1a7f37",
+    "HIGH": "#bc4c00",
+    "MEDIUM": "#9a6700",
+    "LOW": "#1a7f37",
 }
 
 FEATURE_NOTES: dict[str, str] = {
     "V14": "Strongest fraud signal — large negative values are highly predictive",
     "V12": "Second strongest — negative values correlate with fraud",
-    "V4":  "Positive values associated with fraud",
+    "V4": "Positive values associated with fraud",
     "V10": "Negative values flag suspicious activity",
     "V11": "Positive values correlate with fraud risk",
     "V17": "Interaction with V1 amplifies fraud signal",
 }
 
 _EXAMPLE_LEGIT = {
-    "V1": -1.3598, "V2": -0.0728, "V3":  2.5364, "V4":  1.3782,
-    "V5": -0.3383, "V6":  0.4624, "V7":  0.2396, "V8":  0.0987,
-    "V9":  0.3638, "V10":-0.0902, "V11":-0.5516, "V12":-0.6178,
-    "V13":-0.9914, "V14":-0.3114, "V15":  1.4682, "V16":-0.4704,
-    "V17": 0.2079, "V18": 0.0258, "V19":  0.4039, "V20":  0.2514,
-    "V21":-0.0183, "V22": 0.2778, "V23":-0.1105,  "V24":  0.0669,
-    "V25": 0.1285, "V26":-0.1891, "V27":  0.1336, "V28": -0.0211,
-    "Amount": 149.62, "Time": 406.0,
+    "V1": -1.3598,
+    "V2": -0.0728,
+    "V3": 2.5364,
+    "V4": 1.3782,
+    "V5": -0.3383,
+    "V6": 0.4624,
+    "V7": 0.2396,
+    "V8": 0.0987,
+    "V9": 0.3638,
+    "V10": -0.0902,
+    "V11": -0.5516,
+    "V12": -0.6178,
+    "V13": -0.9914,
+    "V14": -0.3114,
+    "V15": 1.4682,
+    "V16": -0.4704,
+    "V17": 0.2079,
+    "V18": 0.0258,
+    "V19": 0.4039,
+    "V20": 0.2514,
+    "V21": -0.0183,
+    "V22": 0.2778,
+    "V23": -0.1105,
+    "V24": 0.0669,
+    "V25": 0.1285,
+    "V26": -0.1891,
+    "V27": 0.1336,
+    "V28": -0.0211,
+    "Amount": 149.62,
+    "Time": 406.0,
 }
 _EXAMPLE_FRAUD = {
-    "V1": -3.0436, "V2":  4.5718, "V3": -5.9197, "V4":  5.4046,
-    "V5": -5.9641, "V6": -2.6007, "V7": -7.6758, "V8":  0.4723,
-    "V9": -2.2610, "V10":-11.881, "V11":  4.6013, "V12":-16.612,
-    "V13":-0.8218, "V14":-17.803, "V15":  0.1799, "V16":-1.9437,
-    "V17":-7.3247, "V18":-0.9540, "V19": -0.2925, "V20":  0.1285,
-    "V21": 0.4260, "V22":  0.5420, "V23":  0.2400, "V24":  0.0500,
-    "V25": 0.1200, "V26":-0.2000, "V27":  0.5800, "V28":  0.2100,
-    "Amount": 2125.87, "Time": 150.0,
+    "V1": -3.0436,
+    "V2": 4.5718,
+    "V3": -5.9197,
+    "V4": 5.4046,
+    "V5": -5.9641,
+    "V6": -2.6007,
+    "V7": -7.6758,
+    "V8": 0.4723,
+    "V9": -2.2610,
+    "V10": -11.881,
+    "V11": 4.6013,
+    "V12": -16.612,
+    "V13": -0.8218,
+    "V14": -17.803,
+    "V15": 0.1799,
+    "V16": -1.9437,
+    "V17": -7.3247,
+    "V18": -0.9540,
+    "V19": -0.2925,
+    "V20": 0.1285,
+    "V21": 0.4260,
+    "V22": 0.5420,
+    "V23": 0.2400,
+    "V24": 0.0500,
+    "V25": 0.1200,
+    "V26": -0.2000,
+    "V27": 0.5800,
+    "V28": 0.2100,
+    "Amount": 2125.87,
+    "Time": 150.0,
 }
 
 
 # ── Data helpers ───────────────────────────────────────────────────────────────
+
 
 @st.cache_data(ttl=30)
 def _load_model_metadata(model_name: str = "xgboost_model") -> dict:
@@ -343,14 +395,12 @@ def _api_health() -> dict:
         return {"status": "unreachable", "model_loaded": False}
 
 
-def _api_predict(features: dict, explain: bool = False) -> Optional[dict]:
+def _api_predict(features: dict, explain: bool = False) -> dict | None:
     if not REQUESTS_OK:
         return None
     try:
         params = {"explain": "true"} if explain else {}
-        resp = requests.post(
-            f"{API_URL}/predict", json=features, params=params, timeout=8
-        )
+        resp = requests.post(f"{API_URL}/predict", json=features, params=params, timeout=8)
         if resp.status_code == 200:
             return resp.json()
     except Exception:
@@ -361,31 +411,33 @@ def _api_predict(features: dict, explain: bool = False) -> Optional[dict]:
 def _mpl_style() -> None:
     if not MPL_OK:
         return
-    plt.rcParams.update({
-        "font.family":        "sans-serif",
-        "font.size":          9,
-        "axes.spines.top":    False,
-        "axes.spines.right":  False,
-        "axes.linewidth":     0.7,
-        "axes.edgecolor":     "#d0d7de",
-        "axes.facecolor":     "#ffffff",
-        "figure.facecolor":   "#ffffff",
-        "xtick.color":        "#57606a",
-        "ytick.color":        "#57606a",
-        "xtick.labelsize":    8,
-        "ytick.labelsize":    8,
-        "text.color":         "#24292f",
-        "grid.color":         "#eaeef2",
-        "grid.linewidth":     0.5,
-    })
+    plt.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.size": 9,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.linewidth": 0.7,
+            "axes.edgecolor": "#d0d7de",
+            "axes.facecolor": "#ffffff",
+            "figure.facecolor": "#ffffff",
+            "xtick.color": "#57606a",
+            "ytick.color": "#57606a",
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "text.color": "#24292f",
+            "grid.color": "#eaeef2",
+            "grid.linewidth": 0.5,
+        }
+    )
 
 
 def _tier_badge(tier: str) -> str:
     css = {
         "CRITICAL": "badge-critical",
-        "HIGH":     "badge-high",
-        "MEDIUM":   "badge-medium",
-        "LOW":      "badge-low",
+        "HIGH": "badge-high",
+        "MEDIUM": "badge-medium",
+        "LOW": "badge-low",
     }.get(tier, "badge-unknown")
     return f'<span class="tier-badge {css}">{tier}</span>'
 
@@ -400,6 +452,7 @@ def _section(label: str) -> None:
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
+
 def _render_sidebar() -> str:
     with st.sidebar:
         st.markdown(
@@ -408,7 +461,7 @@ def _render_sidebar() -> str:
             'letter-spacing:-0.015em;">Fraud Detection ML</div>'
             '<div style="font-size:0.68rem;color:#484f58;margin-top:2px;'
             'text-transform:uppercase;letter-spacing:0.07em;"></div>'
-            '</div>',
+            "</div>",
             unsafe_allow_html=True,
         )
 
@@ -428,22 +481,22 @@ def _render_sidebar() -> str:
             unsafe_allow_html=True,
         )
 
-        health   = _api_health()
-        api_ok   = health.get("status") == "ok"
+        health = _api_health()
+        api_ok = health.get("status") == "ok"
         model_ok = health.get("model_loaded", False)
 
         st.markdown(
             '<div style="padding:0 16px;font-size:0.65rem;font-weight:600;'
-            'text-transform:uppercase;letter-spacing:0.09em;color:#484f58;'
+            "text-transform:uppercase;letter-spacing:0.09em;color:#484f58;"
             'margin-bottom:10px;">System Status</div>',
             unsafe_allow_html=True,
         )
 
         c1, c2 = st.columns(2)
-        api_color = "#3fb950" if api_ok   else "#f85149"
+        api_color = "#3fb950" if api_ok else "#f85149"
         mod_color = "#58a6ff" if model_ok else "#484f58"
-        api_txt   = "Online"  if api_ok   else "Offline"
-        mod_txt   = "Ready"   if model_ok else "Missing"
+        api_txt = "Online" if api_ok else "Offline"
+        mod_txt = "Ready" if model_ok else "Missing"
 
         c1.markdown(
             f'<div style="background:#161b22;border:1px solid #30363d;border-radius:6px;'
@@ -451,7 +504,7 @@ def _render_sidebar() -> str:
             f'<div style="font-size:0.6rem;color:#484f58;text-transform:uppercase;'
             f'letter-spacing:0.07em;margin-bottom:3px;">API</div>'
             f'<div style="font-size:0.85rem;font-weight:600;color:{api_color};">{api_txt}</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
         c2.markdown(
@@ -460,7 +513,7 @@ def _render_sidebar() -> str:
             f'<div style="font-size:0.6rem;color:#484f58;text-transform:uppercase;'
             f'letter-spacing:0.07em;margin-bottom:3px;">Model</div>'
             f'<div style="font-size:0.85rem;font-weight:600;color:{mod_color};">{mod_txt}</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -485,24 +538,25 @@ def _render_sidebar() -> str:
         meta = _load_model_metadata()
         st.markdown(
             '<div style="padding:0 16px;font-size:0.65rem;font-weight:600;'
-            'text-transform:uppercase;letter-spacing:0.09em;color:#484f58;'
+            "text-transform:uppercase;letter-spacing:0.09em;color:#484f58;"
             'margin-bottom:8px;">Active Model</div>',
             unsafe_allow_html=True,
         )
         if meta:
             model_class = meta.get("class", "Unknown")
-            pr_val      = meta.get("val_pr_auc")
+            pr_val = meta.get("val_pr_auc")
             st.markdown(
                 f'<div style="padding:0 16px;">'
                 f'<div style="font-family:monospace;font-size:0.75rem;color:#58a6ff;">'
-                f'{model_class}</div>'
+                f"{model_class}</div>"
                 + (
                     f'<div style="font-size:1.3rem;font-weight:700;color:#f0f6fc;'
                     f'margin-top:4px;font-family:monospace;">{float(pr_val):.4f}'
                     f'<span style="font-size:0.62rem;color:#484f58;'
                     f'font-weight:400;margin-left:6px;font-family:sans-serif;">PR-AUC</span>'
-                    f'</div>'
-                    if pr_val else ""
+                    f"</div>"
+                    if pr_val
+                    else ""
                 )
                 + "</div>",
                 unsafe_allow_html=True,
@@ -520,7 +574,7 @@ def _render_sidebar() -> str:
             unsafe_allow_html=True,
         )
 
-        if st.button("Refresh data", width='stretch'):
+        if st.button("Refresh data", width="stretch"):
             st.cache_data.clear()
             st.rerun()
 
@@ -529,6 +583,7 @@ def _render_sidebar() -> str:
 
 # ── Page 1 — Overview ──────────────────────────────────────────────────────────
 
+
 def _page_overview() -> None:
     st.title("Transaction Overview")
     st.caption(f"Last updated  {time.strftime('%H:%M:%S UTC', time.gmtime())}")
@@ -536,31 +591,39 @@ def _page_overview() -> None:
     alert_df = _load_alert_log(1_000)
     txn_df = pd.read_json(TXN_LOG, lines=True) if TXN_LOG.exists() else pd.DataFrame()
     # ── Cumulative stats from SQLite (survives restarts) ──────────
-    _db_stats      = _get_all_stats()
-    total_alerts   = int(_db_stats.get('total_alerts', len(alert_df)))
-    critical_count = int((alert_df["risk_tier"] == "CRITICAL").sum()) if "risk_tier" in alert_df.columns else 0
-    high_count     = int((alert_df["risk_tier"] == "HIGH").sum()) if "risk_tier" in alert_df.columns else 0
-    avg_prob       = float(_db_stats.get('avg_fraud_prob', 0.0))
-    total_exposure = float(_db_stats.get('fraud_exposure', 0.0))
-    total_txns     = len(txn_df) if not txn_df.empty else total_alerts
+    _db_stats = _get_all_stats()
+    total_alerts = int(_db_stats.get("total_alerts", len(alert_df)))
+    critical_count = (
+        int((alert_df["risk_tier"] == "CRITICAL").sum()) if "risk_tier" in alert_df.columns else 0
+    )
+    high_count = (
+        int((alert_df["risk_tier"] == "HIGH").sum()) if "risk_tier" in alert_df.columns else 0
+    )
+    avg_prob = float(_db_stats.get("avg_fraud_prob", 0.0))
+    total_exposure = float(_db_stats.get("fraud_exposure", 0.0))
+    len(txn_df) if not txn_df.empty else total_alerts
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total alerts", f"{total_alerts:,}", help="All fraud alerts in the log")
     c2.metric("Critical", f"{critical_count:,}", help="Auto-blocked — prob >= 70%")
     c3.metric("High risk", f"{high_count:,}", help="Manual review — prob 40% to 70%")
-    c4.metric("Avg Fraud Prob",  f"{avg_prob*100:.1f}%",     help="Mean fraud probability (flagged txns only)")
-    c5.metric("Exposure",        f"${total_exposure:,.2f}",  help="Sum of alerted transaction amounts")
+    c4.metric(
+        "Avg Fraud Prob",
+        f"{avg_prob * 100:.1f}%",
+        help="Mean fraud probability (flagged txns only)",
+    )
+    c5.metric("Exposure", f"${total_exposure:,.2f}", help="Sum of alerted transaction amounts")
 
     _divider()
 
     if alert_df.empty:
         st.markdown(
             '<div class="infobox">'
-            'No alert data yet. The Overview page populates once the API is running and '
-            'the transaction simulator has sent some traffic.<br><br>'
-            'Start the simulator in a new terminal tab:<br>'
-            '<code>python simulation/real_time_transactions.py --tps 2 --duration 120</code>'
-            '</div>',
+            "No alert data yet. The Overview page populates once the API is running and "
+            "the transaction simulator has sent some traffic.<br><br>"
+            "Start the simulator in a new terminal tab:<br>"
+            "<code>python simulation/real_time_transactions.py --tps 2 --duration 120</code>"
+            "</div>",
             unsafe_allow_html=True,
         )
         return
@@ -568,8 +631,7 @@ def _page_overview() -> None:
     if "timestamp" in alert_df.columns and alert_df["timestamp"].notna().any():
         _section("Alert volume per minute")
         ts = (
-            alert_df
-            .dropna(subset=["timestamp"])
+            alert_df.dropna(subset=["timestamp"])
             .set_index("timestamp")
             .resample("1min")
             .size()
@@ -588,46 +650,50 @@ def _page_overview() -> None:
     with col_l:
         if "risk_tier" in alert_df.columns and MPL_OK:
             _mpl_style()
-            order  = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+            order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
             counts = alert_df["risk_tier"].value_counts().reindex(order).dropna().astype(int)
             colors = [TIER_COLOR.get(t, "#57606a") for t in counts.index]
             fig, ax = plt.subplots(figsize=(5, 2.8))
             ax.barh(counts.index, counts.values, color=colors, height=0.5)
             ax.set_xlabel("Alert count", fontsize=8)
-            for i, (idx, val) in enumerate(zip(counts.index, counts.values)):
-                ax.text(val + max(counts.values) * 0.02, i,
-                        str(val), va="center", fontsize=8, color="#57606a")
+            for i, (_idx, val) in enumerate(zip(counts.index, counts.values)):
+                ax.text(
+                    val + max(counts.values) * 0.02,
+                    i,
+                    str(val),
+                    va="center",
+                    fontsize=8,
+                    color="#57606a",
+                )
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
     with col_r:
         if "risk_tier" in alert_df.columns and "amount" in alert_df.columns and MPL_OK:
             _mpl_style()
-            order        = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+            order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
             tier_amounts = (
-                alert_df.groupby("risk_tier")["amount"]
-                .mean()
-                .reindex(order)
-                .dropna()
-                .round(2)
+                alert_df.groupby("risk_tier")["amount"].mean().reindex(order).dropna().round(2)
             )
             colors = [TIER_COLOR.get(t, "#57606a") for t in tier_amounts.index]
             fig, ax = plt.subplots(figsize=(5, 2.8))
             ax.barh(tier_amounts.index, tier_amounts.values, color=colors, height=0.5)
             ax.set_xlabel("Average amount (USD)", fontsize=8)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
-
-# ── Page 2 — Live Prediction ───────────────────────────────────────────────────
+    # ── Page 2 — Live Prediction ───────────────────────────────────────────────────
 
     # auto-refresh every 5s
     import time as _time
+
     if _time.time() - st.session_state.get("_ov_refresh", 0) >= 5:
         st.session_state["_ov_refresh"] = _time.time()
         st.rerun()
+
+
 def _page_live_prediction() -> None:
     st.title("Live Prediction")
     st.caption("Score a single transaction against the live model.")
@@ -653,12 +719,12 @@ def _page_live_prediction() -> None:
         st.session_state["features"] = {
             **{f"V{i}": round(float(rng.normal(0, 2)), 4) for i in range(1, 29)},
             "Amount": round(float(rng.exponential(80)), 2),
-            "Time":   round(float(rng.uniform(0, 172_800)), 1),
+            "Time": round(float(rng.uniform(0, 172_800)), 1),
         }
         st.rerun()
 
     st.write("")
-    feats = st.session_state["features"]
+    st.session_state["features"]
 
     with st.expander("Edit PCA features  V1 to V28", expanded=False):
         st.caption(
@@ -680,16 +746,20 @@ def _page_live_prediction() -> None:
     ca, ct, cex, _ = st.columns([2, 2, 2, 3])
     with ca:
         amount = st.number_input(
-            "Amount (USD)", min_value=0.0,
+            "Amount (USD)",
+            min_value=0.0,
             value=float(st.session_state["features"].get("Amount", 0.0)),
-            step=1.0, format="%.2f",
+            step=1.0,
+            format="%.2f",
             help="Raw transaction amount. Scaled internally by the API.",
         )
     with ct:
         time_val = st.number_input(
-            "Time (seconds)", min_value=0.0,
+            "Time (seconds)",
+            min_value=0.0,
             value=float(st.session_state["features"].get("Time", 0.0)),
-            step=1.0, format="%.1f",
+            step=1.0,
+            format="%.1f",
             help="Seconds since the first transaction in the dataset (0 to 172800).",
         )
     with cex:
@@ -722,41 +792,50 @@ def _page_live_prediction() -> None:
         st.error("No response from the API. Confirm it is running on port 8000.")
         return
 
-    is_fraud = result.get("prediction") == "fraud"
-    prob     = float(result.get("probability", 0.0))
-    tier     = result.get("risk_tier", "LOW")
-    message  = result.get("message", "")
-    bar_col  = TIER_COLOR.get(tier, "#1a7f37")
-    pct      = round(prob * 100, 2)
+    prob = float(result.get("probability", 0.0))
+    tier = result.get("risk_tier", "LOW")
+    message = result.get("message", "")
+    bar_col = TIER_COLOR.get(tier, "#1a7f37")
+    pct = round(prob * 100, 2)
 
     col_left, col_right = st.columns([1, 1.4])
 
     with col_left:
-        score_class = "verdict-score-fraud" if tier in ("CRITICAL", "HIGH") else "verdict-score-legit"
-        verdict_class = {"CRITICAL": "verdict-fraud", "HIGH": "verdict-high", "MEDIUM": "verdict-medium"}.get(tier, "verdict-legit")
-        decision = {"CRITICAL": "Fraud detected — Auto-block", "HIGH": "High risk — Manual review", "MEDIUM": "Medium risk — Soft review"}.get(tier, "Legitimate transaction")
+        score_class = (
+            "verdict-score-fraud" if tier in ("CRITICAL", "HIGH") else "verdict-score-legit"
+        )
+        verdict_class = {
+            "CRITICAL": "verdict-fraud",
+            "HIGH": "verdict-high",
+            "MEDIUM": "verdict-medium",
+        }.get(tier, "verdict-legit")
+        decision = {
+            "CRITICAL": "Fraud detected — Auto-block",
+            "HIGH": "High risk — Manual review",
+            "MEDIUM": "Medium risk — Soft review",
+        }.get(tier, "Legitimate transaction")
         st.markdown(
             f'<div class="{verdict_class}">'
             f'<div class="verdict-eyebrow">Model decision</div>'
             f'<div class="verdict-title">{decision}</div>'
-            f'<div class="{score_class}">{prob*100:.2f}%</div>'
+            f'<div class="{score_class}">{prob * 100:.2f}%</div>'
             f'<div style="margin-top:6px">{_tier_badge(tier)}</div>'
             f'<div style="font-size:0.72rem;color:#57606a;margin-top:6px;">{message}</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
     with col_right:
         st.markdown("**Probability gauge**")
         st.markdown(
-            f'''<div style="position:relative;margin:14px 0 6px;">
+            f"""<div style="position:relative;margin:14px 0 6px;">
   <div style="display:flex;height:18px;border-radius:8px;overflow:hidden;border:1px solid #d0d7de;">
     <div style="width:15%;background:#1a7f37;opacity:0.18;"></div>
     <div style="width:25%;background:#e36209;opacity:0.18;"></div>
     <div style="width:30%;background:#cf222e;opacity:0.18;"></div>
     <div style="width:30%;background:#6e40c9;opacity:0.18;"></div>
   </div>
-  <div style="position:absolute;top:0;left:{min(max(pct,1),98):.1f}%;transform:translateX(-50%);
+  <div style="position:absolute;top:0;left:{min(max(pct, 1), 98):.1f}%;transform:translateX(-50%);
               width:14px;height:18px;background:{bar_col};border-radius:4px;
               border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);transition:left 0.4s;">
   </div>
@@ -764,19 +843,21 @@ def _page_live_prediction() -> None:
 <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:#57606a;margin-bottom:4px;">
   <span>0%</span><span style="color:#1a7f37">LOW</span><span style="color:#e36209">MED</span><span style="color:#cf222e">HIGH</span><span style="color:#6e40c9">CRIT</span><span>100%</span>
 </div>
-<div stnter;font-family:monospace;font-weight:700;font-size:1.1rem;color:{bar_col};">{pct:.2f}% — {tier}</div>''',
+<div stnter;font-family:monospace;font-weight:700;font-size:1.1rem;color:{bar_col};">{pct:.2f}% — {tier}</div>""",
             unsafe_allow_html=True,
         )
         st.write("")
         st.caption("Threshold guide")
         st.dataframe(
-            pd.DataFrame([
-                {"Tier": "Low",      "Range": "below 15%",   "Action": "Allow"},
-                {"Tier": "Medium",   "Range": "15% to 40%", "Action": "Soft review"},
-                {"Tier": "High",     "Range": "40% to 70%", "Action": "Manual review"},
-                {"Tier": "Critical", "Range": "70% and above", "Action": "Auto-block"},
-            ]),
-            width='stretch',
+            pd.DataFrame(
+                [
+                    {"Tier": "Low", "Range": "below 15%", "Action": "Allow"},
+                    {"Tier": "Medium", "Range": "15% to 40%", "Action": "Soft review"},
+                    {"Tier": "High", "Range": "40% to 70%", "Action": "Manual review"},
+                    {"Tier": "Critical", "Range": "70% and above", "Action": "Auto-block"},
+                ]
+            ),
+            width="stretch",
             hide_index=True,
         )
 
@@ -784,13 +865,15 @@ def _page_live_prediction() -> None:
     _section("API response")
     col_j, _ = st.columns([2, 3])
     with col_j:
-        st.json({
-            "prediction":     result.get("prediction"),
-            "probability":    round(prob, 6),
-            "risk_tier":      tier,
-            "threshold_used": result.get("threshold_used"),
-            "message":        message,
-        })
+        st.json(
+            {
+                "prediction": result.get("prediction"),
+                "probability": round(prob, 6),
+                "risk_tier": tier,
+                "threshold_used": result.get("threshold_used"),
+                "message": message,
+            }
+        )
 
     _divider()
     _section("Features submitted to model")
@@ -799,11 +882,13 @@ def _page_live_prediction() -> None:
         "V1 through V28 pass through unchanged."
     )
     st.dataframe(
-        pd.DataFrame([
-            {"Feature": k, "Value": round(v, 4), "Note": FEATURE_NOTES.get(k, "")}
-            for k, v in current.items()
-        ]),
-        width='stretch',
+        pd.DataFrame(
+            [
+                {"Feature": k, "Value": round(v, 4), "Note": FEATURE_NOTES.get(k, "")}
+                for k, v in current.items()
+            ]
+        ),
+        width="stretch",
         hide_index=True,
     )
 
@@ -818,7 +903,7 @@ def _page_live_prediction() -> None:
         top_feats = explanation.get("top_features", [])
         if top_feats:
             _mpl_style()
-            names  = [f["feature"]    for f in top_feats]
+            names = [f["feature"] for f in top_feats]
             values = [f["shap_value"] for f in top_feats]
             colors = [TIER_COLOR["CRITICAL"] if v > 0 else TIER_COLOR["LOW"] for v in values]
             fig, ax = plt.subplots(figsize=(7, max(3, len(names) * 0.42)))
@@ -828,7 +913,7 @@ def _page_live_prediction() -> None:
             ax.axvline(0, color="#d0d7de", linewidth=0.8, linestyle="--")
             ax.set_xlabel("SHAP contribution to fraud probability", fontsize=8)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
         if text := explanation.get("explanation_text"):
@@ -845,6 +930,7 @@ def _page_live_prediction() -> None:
 
 # ── Page 3 — Model Analysis ────────────────────────────────────────────────────
 
+
 def _page_model_analysis() -> None:
     st.title("Model Analysis")
     st.caption(
@@ -856,7 +942,7 @@ def _page_model_analysis() -> None:
     if not meta:
         st.markdown(
             '<div class="infobox">No model metadata found. '
-            'Run <code>python main.py</code> to train.</div>',
+            "Run <code>python main.py</code> to train.</div>",
             unsafe_allow_html=True,
         )
         return
@@ -864,11 +950,19 @@ def _page_model_analysis() -> None:
     _section("Validation metrics")
 
     specs = [
-        ("val_pr_auc",    "PR-AUC",     "Primary metric for imbalanced datasets. Area under Precision-Recall curve."),
-        ("val_roc_auc",   "ROC-AUC",    "Area under the ROC curve."),
-        ("val_precision", "Precision",   "TP / (TP + FP)  —  fraction of fraud alerts that were real fraud."),
-        ("val_recall",    "Recall",      "TP / (TP + FN)  —  fraction of actual fraud cases caught."),
-        ("val_f1",        "F1 Score",    "Harmonic mean of Precision and Recall."),
+        (
+            "val_pr_auc",
+            "PR-AUC",
+            "Primary metric for imbalanced datasets. Area under Precision-Recall curve.",
+        ),
+        ("val_roc_auc", "ROC-AUC", "Area under the ROC curve."),
+        (
+            "val_precision",
+            "Precision",
+            "TP / (TP + FP)  —  fraction of fraud alerts that were real fraud.",
+        ),
+        ("val_recall", "Recall", "TP / (TP + FN)  —  fraction of actual fraud cases caught."),
+        ("val_f1", "F1 Score", "Harmonic mean of Precision and Recall."),
     ]
     cols = st.columns(len(specs))
     for col, (key, label, tip) in zip(cols, specs):
@@ -886,7 +980,7 @@ def _page_model_analysis() -> None:
         ]
         path = next((p for p in candidates if p.exists()), None)
         if path:
-            st.image(str(path), width='stretch')
+            st.image(str(path), width="stretch")
             st.caption(
                 "Rows = actual class, columns = predicted. "
                 "We optimise for high recall at the cost of some precision — "
@@ -905,7 +999,7 @@ def _page_model_analysis() -> None:
         ]
         path = next((p for p in candidates if p.exists()), None)
         if path:
-            st.image(str(path), width='stretch')
+            st.image(str(path), width="stretch")
             st.caption(
                 "V14, V12, and V10 are consistently the strongest fraud signals. "
                 "Engineered features log_amount and V12_V14 also rank highly."
@@ -923,7 +1017,7 @@ def _page_model_analysis() -> None:
     with col_roc:
         p = REPORT_DIR / "roc_curves.png"
         if p.exists():
-            st.image(str(p), width='stretch')
+            st.image(str(p), width="stretch")
         else:
             st.markdown(
                 '<div class="infobox">Run <code>python main.py</code> to generate plots.</div>',
@@ -933,7 +1027,7 @@ def _page_model_analysis() -> None:
     with col_pr:
         p = REPORT_DIR / "pr_curves.png"
         if p.exists():
-            st.image(str(p), width='stretch')
+            st.image(str(p), width="stretch")
             st.caption(
                 "The correct primary chart for imbalanced datasets. "
                 "A random classifier sits at precision = 0.0017 (the base fraud rate)."
@@ -956,14 +1050,14 @@ def _page_model_analysis() -> None:
         cs, cb = st.columns(2)
         with cs:
             if shap_s.exists():
-                st.image(str(shap_s), width='stretch')
+                st.image(str(shap_s), width="stretch")
                 st.caption(
                     "Beeswarm — each dot is one transaction. "
                     "Position on the x-axis = SHAP impact on fraud probability."
                 )
         with cb:
             if shap_b.exists():
-                st.image(str(shap_b), width='stretch')
+                st.image(str(shap_b), width="stretch")
                 st.caption("Mean absolute SHAP value per feature across all test predictions.")
 
     results_df = _load_model_results()
@@ -973,7 +1067,7 @@ def _page_model_analysis() -> None:
         st.caption("All models evaluated at threshold 0.40 on the held-out test set.")
         st.dataframe(
             results_df.sort_values("PR_AUC", ascending=False).reset_index(drop=True),
-            width='stretch',
+            width="stretch",
             hide_index=True,
         )
 
@@ -981,10 +1075,8 @@ def _page_model_analysis() -> None:
         params = meta.get("params", {})
         if params:
             st.dataframe(
-                pd.DataFrame(
-                    [{"Parameter": k, "Value": v} for k, v in sorted(params.items())]
-                ),
-                width='stretch',
+                pd.DataFrame([{"Parameter": k, "Value": v} for k, v in sorted(params.items())]),
+                width="stretch",
                 hide_index=True,
             )
         tc, sc = st.columns(2)
@@ -995,6 +1087,7 @@ def _page_model_analysis() -> None:
 
 
 # ── Page 4 — Alert Feed ────────────────────────────────────────────────────────
+
 
 def _page_alert_feed() -> None:
     st.title("Alert Feed")
@@ -1015,19 +1108,17 @@ def _page_alert_feed() -> None:
     if alert_df.empty:
         st.markdown(
             '<div class="infobox">'
-            'No alerts yet. Run the simulator to generate traffic.<br><br>'
-            '<code>python simulation/real_time_transactions.py --tps 2 --duration 120</code>'
-            '</div>',
+            "No alerts yet. Run the simulator to generate traffic.<br><br>"
+            "<code>python simulation/real_time_transactions.py --tps 2 --duration 120</code>"
+            "</div>",
             unsafe_allow_html=True,
         )
         return
 
-    _rank    = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+    _rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
     min_rank = _rank.get(min_tier.upper(), -1) if min_tier != "All" else -1
     if min_rank >= 0 and "risk_tier" in alert_df.columns:
-        alert_df = alert_df[
-            alert_df["risk_tier"].map(lambda t: _rank.get(t, 0)) >= min_rank
-        ]
+        alert_df = alert_df[alert_df["risk_tier"].map(lambda t: _rank.get(t, 0)) >= min_rank]
 
     display = alert_df.tail(n_show).iloc[::-1]
 
@@ -1036,11 +1127,11 @@ def _page_alert_feed() -> None:
         return
 
     for _, row in display.iterrows():
-        tier   = str(row.get("risk_tier", "LOW")).upper()
-        prob   = float(row.get("probability", 0.0))
+        tier = str(row.get("risk_tier", "LOW")).upper()
+        prob = float(row.get("probability", 0.0))
         amount = float(row.get("amount", 0.0))
         txn_id = str(row.get("transaction_id", "UNKNOWN"))
-        ts     = str(row.get("timestamp", ""))[:19]
+        ts = str(row.get("timestamp", ""))[:19]
         action = str(row.get("action", ""))
         row_css = tier.lower()
 
@@ -1048,22 +1139,22 @@ def _page_alert_feed() -> None:
             f'<div class="alert-item {row_css}">'
             f'<div style="display:flex;align-items:center;gap:10px;">'
             f'<span class="mono">{txn_id}</span>'
-            f'&nbsp;{_tier_badge(tier)}'
-            f'</div>'
+            f"&nbsp;{_tier_badge(tier)}"
+            f"</div>"
             f'<div class="small-muted">'
-            f'{ts}&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'${amount:,.2f}&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'score&nbsp;{prob*100:.2f}%&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'{action}'
-            f'</div>'
-            f'</div>',
+            f"{ts}&nbsp;&nbsp;·&nbsp;&nbsp;"
+            f"${amount:,.2f}&nbsp;&nbsp;·&nbsp;&nbsp;"
+            f"score&nbsp;{prob * 100:.2f}%&nbsp;&nbsp;·&nbsp;&nbsp;"
+            f"{action}"
+            f"</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
     _divider()
     with st.expander("Raw data table and export"):
         clean = display.reset_index(drop=True)
-        st.dataframe(clean, width='stretch')
+        st.dataframe(clean, width="stretch")
         st.download_button(
             "Download as CSV",
             data=clean.to_csv(index=False).encode(),
@@ -1073,6 +1164,7 @@ def _page_alert_feed() -> None:
 
 
 # ── Page 5 — Batch Scoring ─────────────────────────────────────────────────────
+
 
 def _page_batch_scoring() -> None:
     st.title("Batch Scoring")
@@ -1086,10 +1178,10 @@ def _page_batch_scoring() -> None:
     if uploaded is None:
         st.markdown(
             '<div class="infobox">'
-            'Awaiting a CSV file with columns <code>V1</code> through <code>V28</code>, '
-            '<code>Amount</code>, and <code>Time</code>. '
-            'Optionally include a <code>Class</code> column (0/1) to enable ground-truth comparison.'
-            '</div>',
+            "Awaiting a CSV file with columns <code>V1</code> through <code>V28</code>, "
+            "<code>Amount</code>, and <code>Time</code>. "
+            "Optionally include a <code>Class</code> column (0/1) to enable ground-truth comparison."
+            "</div>",
             unsafe_allow_html=True,
         )
         return
@@ -1103,7 +1195,7 @@ def _page_batch_scoring() -> None:
     st.success(f"Loaded {len(df):,} rows and {df.shape[1]} columns.")
 
     required = [f"V{i}" for i in range(1, 29)] + ["Amount", "Time"]
-    missing  = [c for c in required if c not in df.columns]
+    missing = [c for c in required if c not in df.columns]
     if missing:
         st.error(f"Missing required columns: {missing}")
         return
@@ -1119,54 +1211,61 @@ def _page_batch_scoring() -> None:
     health = _api_health()
     if not health.get("model_loaded", False):
         st.error(
-            "API model is not loaded. "
-            "Start with:  uvicorn api.main:app --host 0.0.0.0 --port 8000"
+            "API model is not loaded. Start with:  uvicorn api.main:app --host 0.0.0.0 --port 8000"
         )
         return
 
-    bar      = st.progress(0.0, text="Scoring transactions...")
+    bar = st.progress(0.0, text="Scoring transactions...")
     results: list[dict] = []
 
     for idx, (_, row) in enumerate(df.head(max_rows).iterrows()):
         payload = {col: float(row[col]) for col in required}
-        resp    = _api_predict(payload)
+        resp = _api_predict(payload)
         if resp:
-            results.append({
-                "prediction":  resp["prediction"],
-                "probability": resp["probability"],
-                "risk_tier":   resp["risk_tier"],
-            })
+            results.append(
+                {
+                    "prediction": resp["prediction"],
+                    "probability": resp["probability"],
+                    "risk_tier": resp["risk_tier"],
+                }
+            )
         else:
-            results.append({
-                "prediction": "error",
-                "probability": 0.0,
-                "risk_tier":   "UNKNOWN",
-            })
+            results.append(
+                {
+                    "prediction": "error",
+                    "probability": 0.0,
+                    "risk_tier": "UNKNOWN",
+                }
+            )
         bar.progress((idx + 1) / max_rows, text=f"Scored {idx + 1:,} of {max_rows:,}")
 
     bar.empty()
-    res_df   = pd.DataFrame(results)
+    res_df = pd.DataFrame(results)
     final_df = pd.concat(
         [df.head(max_rows).reset_index(drop=True), res_df.reset_index(drop=True)],
         axis=1,
     )
 
-    total        = len(res_df)
-    fraud_count  = int((res_df["prediction"] == "fraud").sum())
-    legit_count  = total - fraud_count
-    fraud_rate   = fraud_count / total if total > 0 else 0.0
-    fraud_amount = float(final_df.loc[res_df["prediction"] == "fraud", "Amount"].sum()) if fraud_count > 0 else 0.0
+    total = len(res_df)
+    fraud_count = int((res_df["prediction"] == "fraud").sum())
+    legit_count = total - fraud_count
+    fraud_rate = fraud_count / total if total > 0 else 0.0
+    fraud_amount = (
+        float(final_df.loc[res_df["prediction"] == "fraud", "Amount"].sum())
+        if fraud_count > 0
+        else 0.0
+    )
     critical_cnt = int((res_df["risk_tier"] == "CRITICAL").sum())
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
     _divider()
     _section("Summary")
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    k1.metric("Total scored",    f"{total:,}")
-    k2.metric("Fraud detected",  f"{fraud_count:,}")
-    k3.metric("Legitimate",      f"{legit_count:,}")
-    k4.metric("Fraud rate",      f"{fraud_rate:.2%}")
-    k5.metric("Total exposure",  f"${fraud_amount:,.0f}")
+    k1.metric("Total scored", f"{total:,}")
+    k2.metric("Fraud detected", f"{fraud_count:,}")
+    k3.metric("Legitimate", f"{legit_count:,}")
+    k4.metric("Fraud rate", f"{fraud_rate:.2%}")
+    k5.metric("Total exposure", f"${fraud_amount:,.0f}")
     k6.metric("Critical alerts", f"{critical_cnt:,}")
 
     _divider()
@@ -1179,18 +1278,25 @@ def _page_batch_scoring() -> None:
         st.caption("Risk tier breakdown")
         if MPL_OK:
             _mpl_style()
-            order       = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
+            order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
             tier_counts = res_df["risk_tier"].value_counts().reindex(order).dropna().astype(int)
-            colors      = [TIER_COLOR.get(t, "#57606a") for t in tier_counts.index]
+            colors = [TIER_COLOR.get(t, "#57606a") for t in tier_counts.index]
             fig, ax = plt.subplots(figsize=(5, 2.8))
             bars = ax.bar(tier_counts.index, tier_counts.values, color=colors, width=0.45, zorder=2)
             ax.set_ylabel("Count", fontsize=8)
             ax.yaxis.grid(True, zorder=0)
             for b, v in zip(bars, tier_counts.values):
-                ax.text(b.get_x() + b.get_width()/2, v + max(tier_counts.values)*0.01,
-                        f"{v:,}", ha="center", va="bottom", fontsize=7, color="#57606a")
+                ax.text(
+                    b.get_x() + b.get_width() / 2,
+                    v + max(tier_counts.values) * 0.01,
+                    f"{v:,}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="#57606a",
+                )
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
     with col_p:
@@ -1199,16 +1305,28 @@ def _page_batch_scoring() -> None:
         if MPL_OK and len(probs) > 0:
             _mpl_style()
             fig, ax = plt.subplots(figsize=(5, 2.8))
-            ax.hist(probs[res_df["prediction"] == "legitimate"], bins=40,
-                    color="#1a7f37", alpha=0.7, label="Legitimate", zorder=2)
-            ax.hist(probs[res_df["prediction"] == "fraud"], bins=40,
-                    color="#cf222e", alpha=0.85, label="Fraud", zorder=3)
+            ax.hist(
+                probs[res_df["prediction"] == "legitimate"],
+                bins=40,
+                color="#1a7f37",
+                alpha=0.7,
+                label="Legitimate",
+                zorder=2,
+            )
+            ax.hist(
+                probs[res_df["prediction"] == "fraud"],
+                bins=40,
+                color="#cf222e",
+                alpha=0.85,
+                label="Fraud",
+                zorder=3,
+            )
             ax.axvline(0.40, color="#bc4c00", linewidth=1.2, linestyle="--", label="Threshold 0.40")
             ax.set_xlabel("Fraud probability", fontsize=8)
             ax.set_ylabel("Count", fontsize=8)
             ax.legend(fontsize=7)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
     _divider()
@@ -1221,17 +1339,21 @@ def _page_batch_scoring() -> None:
         st.caption("Transaction amount by prediction class")
         if MPL_OK and fraud_count > 0:
             _mpl_style()
-            fraud_amts = final_df.loc[res_df["prediction"] == "fraud",    "Amount"].clip(upper=5000)
-            legit_amts = final_df.loc[res_df["prediction"] == "legitimate","Amount"].clip(upper=5000)
+            fraud_amts = final_df.loc[res_df["prediction"] == "fraud", "Amount"].clip(upper=5000)
+            legit_amts = final_df.loc[res_df["prediction"] == "legitimate", "Amount"].clip(
+                upper=5000
+            )
             fig, ax = plt.subplots(figsize=(5, 2.8))
             bins = np.linspace(0, 5000, 50)
-            ax.hist(legit_amts, bins=bins, color="#1a7f37", alpha=0.7, label="Legitimate", density=True)
+            ax.hist(
+                legit_amts, bins=bins, color="#1a7f37", alpha=0.7, label="Legitimate", density=True
+            )
             ax.hist(fraud_amts, bins=bins, color="#cf222e", alpha=0.85, label="Fraud", density=True)
             ax.set_xlabel("Amount (USD, capped $5k)", fontsize=8)
             ax.set_ylabel("Density", fontsize=8)
             ax.legend(fontsize=7)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
         else:
             st.info("No fraud detected — upload a file with fraud transactions.")
@@ -1241,7 +1363,9 @@ def _page_batch_scoring() -> None:
         if MPL_OK and fraud_count > 0:
             _mpl_style()
             thresholds = np.linspace(0, 1, 100)
-            exposures  = [final_df.loc[res_df["probability"] >= t, "Amount"].sum() for t in thresholds]
+            exposures = [
+                final_df.loc[res_df["probability"] >= t, "Amount"].sum() for t in thresholds
+            ]
             fig, ax = plt.subplots(figsize=(5, 2.8))
             ax.plot(thresholds, exposures, color="#0969da", linewidth=1.5)
             ax.axvline(0.40, color="#bc4c00", linewidth=1.0, linestyle="--", label="0.40 threshold")
@@ -1251,7 +1375,7 @@ def _page_batch_scoring() -> None:
             ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
             ax.legend(fontsize=7)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
         else:
             st.info("No fraud detected.")
@@ -1266,22 +1390,41 @@ def _page_batch_scoring() -> None:
         st.caption("V14 vs V12 — top two fraud discriminators")
         if MPL_OK:
             _mpl_style()
-            sample_n  = min(2000, total)
-            sidx      = final_df.sample(sample_n, random_state=42).index if total > sample_n else final_df.index
-            sdf       = final_df.loc[sidx]
-            sres      = res_df.loc[sidx]
-            is_fraud  = sres["prediction"] == "fraud"
+            sample_n = min(2000, total)
+            sidx = (
+                final_df.sample(sample_n, random_state=42).index
+                if total > sample_n
+                else final_df.index
+            )
+            sdf = final_df.loc[sidx]
+            sres = res_df.loc[sidx]
+            is_fraud = sres["prediction"] == "fraud"
             fig, ax = plt.subplots(figsize=(5, 3.2))
-            ax.scatter(sdf.loc[~is_fraud, "V14"], sdf.loc[~is_fraud, "V12"],
-                       c="#1a7f37", alpha=0.25, s=5, label="Legitimate", rasterized=True)
-            ax.scatter(sdf.loc[is_fraud,  "V14"], sdf.loc[is_fraud,  "V12"],
-                       c="#cf222e", alpha=0.7, s=12, label="Fraud", zorder=5)
-            ax.set_xlabel("V14", fontsize=8); ax.set_ylabel("V12", fontsize=8)
+            ax.scatter(
+                sdf.loc[~is_fraud, "V14"],
+                sdf.loc[~is_fraud, "V12"],
+                c="#1a7f37",
+                alpha=0.25,
+                s=5,
+                label="Legitimate",
+                rasterized=True,
+            )
+            ax.scatter(
+                sdf.loc[is_fraud, "V14"],
+                sdf.loc[is_fraud, "V12"],
+                c="#cf222e",
+                alpha=0.7,
+                s=12,
+                label="Fraud",
+                zorder=5,
+            )
+            ax.set_xlabel("V14", fontsize=8)
+            ax.set_ylabel("V12", fontsize=8)
             ax.legend(fontsize=7, markerscale=2)
             ax.axvline(0, color="#d0d7de", linewidth=0.5, linestyle=":")
             ax.axhline(0, color="#d0d7de", linewidth=0.5, linestyle=":")
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
     with col_h:
@@ -1289,8 +1432,8 @@ def _page_batch_scoring() -> None:
         if MPL_OK and total > 50:
             _mpl_style()
             fig, ax = plt.subplots(figsize=(5, 3.2))
-            x  = np.log1p(final_df["Amount"].clip(upper=10000))
-            y  = res_df["probability"]
+            x = np.log1p(final_df["Amount"].clip(upper=10000))
+            y = res_df["probability"]
             hb = ax.hexbin(x, y, gridsize=30, cmap="YlOrRd", mincnt=1, linewidths=0.1)
             plt.colorbar(hb, ax=ax, label="Count", pad=0.01)
             ax.axhline(0.40, color="#bc4c00", linewidth=1.0, linestyle="--", label="Threshold 0.40")
@@ -1298,7 +1441,7 @@ def _page_batch_scoring() -> None:
             ax.set_ylabel("Fraud probability", fontsize=8)
             ax.legend(fontsize=7)
             plt.tight_layout(pad=1.0)
-            st.pyplot(fig, width='stretch')
+            st.pyplot(fig, width="stretch")
             plt.close(fig)
 
     _divider()
@@ -1311,47 +1454,65 @@ def _page_batch_scoring() -> None:
         st.caption("Average transaction amount per risk tier")
         if MPL_OK:
             _mpl_style()
-            order    = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+            order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
             tier_avg = (
                 final_df.assign(_tier=res_df["risk_tier"].values)
-                .groupby("_tier")["Amount"].mean()
-                .reindex(order).dropna().round(2)
+                .groupby("_tier")["Amount"]
+                .mean()
+                .reindex(order)
+                .dropna()
+                .round(2)
             )
             if not tier_avg.empty:
                 colors = [TIER_COLOR.get(t, "#57606a") for t in tier_avg.index]
                 fig, ax = plt.subplots(figsize=(5, 2.8))
-                bars = ax.barh(tier_avg.index[::-1], tier_avg.values[::-1],
-                               color=colors[::-1], height=0.5)
+                bars = ax.barh(
+                    tier_avg.index[::-1], tier_avg.values[::-1], color=colors[::-1], height=0.5
+                )
                 ax.set_xlabel("Avg Amount (USD)", fontsize=8)
                 for b, v in zip(bars, tier_avg.values[::-1]):
-                    ax.text(v + max(tier_avg.values)*0.01, b.get_y() + b.get_height()/2,
-                            f"${v:,.0f}", va="center", fontsize=7, color="#57606a")
+                    ax.text(
+                        v + max(tier_avg.values) * 0.01,
+                        b.get_y() + b.get_height() / 2,
+                        f"${v:,.0f}",
+                        va="center",
+                        fontsize=7,
+                        color="#57606a",
+                    )
                 plt.tight_layout(pad=1.0)
-                st.pyplot(fig, width='stretch')
+                st.pyplot(fig, width="stretch")
                 plt.close(fig)
 
     with col_y:
         st.caption("Fraud probability spread per risk tier")
         if MPL_OK:
             _mpl_style()
-            order        = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
-            tier_groups  = [res_df.loc[res_df["risk_tier"] == t, "probability"].values for t in order]
+            order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+            tier_groups = [
+                res_df.loc[res_df["risk_tier"] == t, "probability"].values for t in order
+            ]
             valid_groups = [(t, g) for t, g in zip(order, tier_groups) if len(g) > 0]
             if valid_groups:
                 labels_v = [t for t, _ in valid_groups]
-                data_v   = [g for _, g in valid_groups]
-                fig, ax  = plt.subplots(figsize=(5, 2.8))
-                bp = ax.boxplot(data_v, labels=labels_v, vert=True, patch_artist=True,
-                                medianprops={"color": "#0d1117", "linewidth": 1.5},
-                                whiskerprops={"linewidth": 0.8}, capprops={"linewidth": 0.8},
-                                flierprops={"marker": "o", "markersize": 2, "alpha": 0.4})
+                data_v = [g for _, g in valid_groups]
+                fig, ax = plt.subplots(figsize=(5, 2.8))
+                bp = ax.boxplot(
+                    data_v,
+                    labels=labels_v,
+                    vert=True,
+                    patch_artist=True,
+                    medianprops={"color": "#0d1117", "linewidth": 1.5},
+                    whiskerprops={"linewidth": 0.8},
+                    capprops={"linewidth": 0.8},
+                    flierprops={"marker": "o", "markersize": 2, "alpha": 0.4},
+                )
                 for patch, label in zip(bp["boxes"], labels_v):
                     patch.set_facecolor(TIER_COLOR.get(label, "#57606a"))
                     patch.set_alpha(0.7)
                 ax.set_ylabel("Fraud probability", fontsize=8)
                 ax.axhline(0.40, color="#bc4c00", linewidth=0.8, linestyle="--")
                 plt.tight_layout(pad=1.0)
-                st.pyplot(fig, width='stretch')
+                st.pyplot(fig, width="stretch")
                 plt.close(fig)
 
     _divider()
@@ -1361,22 +1522,22 @@ def _page_batch_scoring() -> None:
         _section("Ground-truth comparison (Class column detected)")
         true_labels = df.head(max_rows)["Class"].astype(int).values
         pred_labels = (res_df["prediction"] == "fraud").astype(int).values
-        probs_arr   = res_df["probability"].values
+        probs_arr = res_df["probability"].values
 
         tp = int(((pred_labels == 1) & (true_labels == 1)).sum())
         fp = int(((pred_labels == 1) & (true_labels == 0)).sum())
         fn = int(((pred_labels == 0) & (true_labels == 1)).sum())
         tn = int(((pred_labels == 0) & (true_labels == 0)).sum())
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1        = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-        accuracy  = (tp + tn) / max(total, 1)
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        accuracy = (tp + tn) / max(total, 1)
 
         g1, g2, g3, g4 = st.columns(4)
         g1.metric("Precision", f"{precision:.4f}", help="Flagged fraud that was real fraud")
-        g2.metric("Recall",    f"{recall:.4f}",    help="Real fraud that was caught")
-        g3.metric("F1 Score",  f"{f1:.4f}")
-        g4.metric("Accuracy",  f"{accuracy:.4f}")
+        g2.metric("Recall", f"{recall:.4f}", help="Real fraud that was caught")
+        g3.metric("F1 Score", f"{f1:.4f}")
+        g4.metric("Accuracy", f"{accuracy:.4f}")
 
         if MPL_OK:
             col_cm, col_rc = st.columns(2)
@@ -1386,31 +1547,46 @@ def _page_batch_scoring() -> None:
                 cm_data = np.array([[tn, fp], [fn, tp]])
                 fig, ax = plt.subplots(figsize=(4, 3))
                 im = ax.imshow(cm_data, cmap="Blues")
-                ax.set_xticks([0, 1]); ax.set_xticklabels(["Pred Legit", "Pred Fraud"])
-                ax.set_yticks([0, 1]); ax.set_yticklabels(["True Legit", "True Fraud"])
+                ax.set_xticks([0, 1])
+                ax.set_xticklabels(["Pred Legit", "Pred Fraud"])
+                ax.set_yticks([0, 1])
+                ax.set_yticklabels(["True Legit", "True Fraud"])
                 for i in range(2):
                     for j in range(2):
-                        ax.text(j, i, f"{cm_data[i,j]:,}", ha="center", va="center",
-                                fontsize=12, fontweight="bold",
-                                color="white" if cm_data[i,j] > cm_data.max()/2 else "#24292f")
+                        ax.text(
+                            j,
+                            i,
+                            f"{cm_data[i, j]:,}",
+                            ha="center",
+                            va="center",
+                            fontsize=12,
+                            fontweight="bold",
+                            color="white" if cm_data[i, j] > cm_data.max() / 2 else "#24292f",
+                        )
                 plt.colorbar(im, ax=ax, shrink=0.8)
                 plt.tight_layout(pad=1.0)
-                st.pyplot(fig, width='stretch')
+                st.pyplot(fig, width="stretch")
                 plt.close(fig)
 
             with col_rc:
                 st.caption("Precision-Recall curve")
                 try:
-                    from sklearn.metrics import precision_recall_curve, average_precision_score
+                    from sklearn.metrics import average_precision_score, precision_recall_curve
+
                     prec_arr, rec_arr, _ = precision_recall_curve(true_labels, probs_arr)
                     ap = average_precision_score(true_labels, probs_arr)
                     _mpl_style()
                     fig, ax = plt.subplots(figsize=(4, 3))
-                    ax.plot(rec_arr, prec_arr, color="#0969da", linewidth=1.5, label=f"AP = {ap:.4f}")
-                    ax.set_xlabel("Recall", fontsize=8); ax.set_ylabel("Precision", fontsize=8)
-                    ax.legend(fontsize=7); ax.set_xlim(0, 1); ax.set_ylim(0, 1.05)
+                    ax.plot(
+                        rec_arr, prec_arr, color="#0969da", linewidth=1.5, label=f"AP = {ap:.4f}"
+                    )
+                    ax.set_xlabel("Recall", fontsize=8)
+                    ax.set_ylabel("Precision", fontsize=8)
+                    ax.legend(fontsize=7)
+                    ax.set_xlim(0, 1)
+                    ax.set_ylim(0, 1.05)
                     plt.tight_layout(pad=1.0)
-                    st.pyplot(fig, width='stretch')
+                    st.pyplot(fig, width="stretch")
                     plt.close(fig)
                 except ImportError:
                     st.info("pip install scikit-learn for PR curve")
@@ -1424,22 +1600,24 @@ def _page_batch_scoring() -> None:
         top_fraud = (
             final_df[fraud_mask]
             .copy()
-            .assign(probability=res_df.loc[fraud_mask, "probability"].values,
-                    risk_tier=res_df.loc[fraud_mask, "risk_tier"].values)
+            .assign(
+                probability=res_df.loc[fraud_mask, "probability"].values,
+                risk_tier=res_df.loc[fraud_mask, "risk_tier"].values,
+            )
             .sort_values("probability", ascending=False)
             .head(20)[["Amount", "Time", "V14", "V12", "V10", "V4", "probability", "risk_tier"]]
             .reset_index(drop=True)
         )
         st.dataframe(
             top_fraud.style.background_gradient(subset=["probability"], cmap="Reds"),
-            width='stretch',
+            width="stretch",
         )
     else:
         st.info("No fraud detected in this batch.")
 
     _divider()
     _section("Full scored results")
-    st.dataframe(final_df, width='stretch')
+    st.dataframe(final_df, width="stretch")
     st.download_button(
         "Download scored results (CSV)",
         data=final_df.to_csv(index=False).encode(),
@@ -1447,16 +1625,18 @@ def _page_batch_scoring() -> None:
         mime="text/csv",
     )
 
+
 # ── Entry point ────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     page = _render_sidebar()
     dispatch = {
-        "Overview":        _page_overview,
+        "Overview": _page_overview,
         "Live Prediction": _page_live_prediction,
-        "Model Analysis":  _page_model_analysis,
-        "Alert Feed":      _page_alert_feed,
-        "Batch Scoring":   _page_batch_scoring,
+        "Model Analysis": _page_model_analysis,
+        "Alert Feed": _page_alert_feed,
+        "Batch Scoring": _page_batch_scoring,
     }
     fn = dispatch.get(page)
     if fn:

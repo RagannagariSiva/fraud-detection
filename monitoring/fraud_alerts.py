@@ -46,7 +46,6 @@ from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from typing import Deque, Dict, Optional
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -59,15 +58,15 @@ logger = logging.getLogger(__name__)
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
 
-RESET  = "\033[0m"
-RED    = "\033[91m"
+RESET = "\033[0m"
+RED = "\033[91m"
 YELLOW = "\033[93m"
-GREEN  = "\033[92m"
-CYAN   = "\033[96m"
-BLUE   = "\033[94m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
-BLINK  = "\033[5m"
+GREEN = "\033[92m"
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+BLINK = "\033[5m"
 
 
 def _c(text: str, *codes: str) -> str:
@@ -80,48 +79,55 @@ def _c(text: str, *codes: str) -> str:
 
 ALERT_POLICY: dict[str, dict] = {
     "CRITICAL": {
-        "level":        "CRITICAL",
-        "action":       "Block card immediately and notify cardholder",
+        "level": "CRITICAL",
+        "action": "Block card immediately and notify cardholder",
         "notify_teams": ["fraud_ops", "card_services", "compliance"],
-        "auto_block":   True,
-        "colour":       RED,
-        "icon":         "🚨",
+        "auto_block": True,
+        "colour": RED,
+        "icon": "🚨",
     },
     "HIGH": {
-        "level":        "HIGH",
-        "action":       "Route to manual fraud review queue",
+        "level": "HIGH",
+        "action": "Route to manual fraud review queue",
         "notify_teams": ["fraud_ops"],
-        "auto_block":   False,
-        "colour":       YELLOW,
-        "icon":         "⚠️ ",
+        "auto_block": False,
+        "colour": YELLOW,
+        "icon": "⚠️ ",
     },
     "MEDIUM": {
-        "level":        "MEDIUM",
-        "action":       "Soft-flag for next-day review",
+        "level": "MEDIUM",
+        "action": "Soft-flag for next-day review",
         "notify_teams": [],
-        "auto_block":   False,
-        "colour":       YELLOW,
-        "icon":         "🔶",
+        "auto_block": False,
+        "colour": YELLOW,
+        "icon": "🔶",
     },
     "LOW": {
-        "level":        "LOW",
-        "action":       "No action required",
+        "level": "LOW",
+        "action": "No action required",
         "notify_teams": [],
-        "auto_block":   False,
-        "colour":       GREEN,
-        "icon":         "✅",
+        "auto_block": False,
+        "colour": GREEN,
+        "icon": "✅",
     },
 }
 
 
 # ── Alert record ─────────────────────────────────────────────────────────────
 
+
 class AlertRecord:
     """Immutable snapshot of a single fraud alert event."""
 
     __slots__ = (
-        "timestamp", "transaction_id", "prediction", "probability",
-        "risk_tier", "amount", "alert_level", "action",
+        "timestamp",
+        "transaction_id",
+        "prediction",
+        "probability",
+        "risk_tier",
+        "amount",
+        "alert_level",
+        "action",
     )
 
     def __init__(
@@ -132,26 +138,26 @@ class AlertRecord:
         risk_tier: str,
         amount: float,
     ):
-        self.timestamp      = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
+        self.timestamp = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
         self.transaction_id = transaction_id
-        self.prediction     = prediction
-        self.probability    = probability
-        self.risk_tier      = risk_tier
-        self.amount         = amount
-        policy              = ALERT_POLICY.get(risk_tier, ALERT_POLICY["LOW"])
-        self.alert_level    = policy["level"]
-        self.action         = policy["action"]
+        self.prediction = prediction
+        self.probability = probability
+        self.risk_tier = risk_tier
+        self.amount = amount
+        policy = ALERT_POLICY.get(risk_tier, ALERT_POLICY["LOW"])
+        self.alert_level = policy["level"]
+        self.action = policy["action"]
 
     def to_dict(self) -> dict:
         return {
-            "timestamp":      self.timestamp,
+            "timestamp": self.timestamp,
             "transaction_id": self.transaction_id,
-            "prediction":     self.prediction,
-            "probability":    round(self.probability, 6),
-            "risk_tier":      self.risk_tier,
-            "amount":         round(self.amount, 2),
-            "alert_level":    self.alert_level,
-            "action":         self.action,
+            "prediction": self.prediction,
+            "probability": round(self.probability, 6),
+            "risk_tier": self.risk_tier,
+            "amount": round(self.amount, 2),
+            "alert_level": self.alert_level,
+            "action": self.action,
         }
 
     def to_json(self) -> str:
@@ -160,16 +166,17 @@ class AlertRecord:
 
 # ── Rolling statistics ────────────────────────────────────────────────────────
 
+
 class RollingStats:
     """Thread-safe rolling window statistics over the last N transactions."""
 
     def __init__(self, window: int = 500):
         self._window: int = window
         self._lock: Lock = Lock()
-        self._history: Deque[dict] = deque(maxlen=window)
+        self._history: deque[dict] = deque(maxlen=window)
         self._total_seen: int = 0
         self._total_fraud: int = 0
-        self._tier_counts: Dict[str, int] = defaultdict(int)
+        self._tier_counts: dict[str, int] = defaultdict(int)
 
     def record(self, prediction: str, risk_tier: str) -> None:
         with self._lock:
@@ -186,17 +193,18 @@ class RollingStats:
             window_fraud = sum(1 for h in self._history if h["prediction"] == "fraud")
             window_total = len(self._history)
             return {
-                "total_seen":           total,
-                "total_fraud":          fraud,
-                "overall_fraud_rate":   round(fraud / max(total, 1), 6),
-                "window_size":          window_total,
-                "window_fraud_count":   window_fraud,
-                "window_fraud_rate":    round(window_fraud / max(window_total, 1), 6),
-                "tier_counts":          dict(self._tier_counts),
+                "total_seen": total,
+                "total_fraud": fraud,
+                "overall_fraud_rate": round(fraud / max(total, 1), 6),
+                "window_size": window_total,
+                "window_fraud_count": window_fraud,
+                "window_fraud_rate": round(window_fraud / max(window_total, 1), 6),
+                "tier_counts": dict(self._tier_counts),
             }
 
 
 # ── Main alert system ─────────────────────────────────────────────────────────
+
 
 class FraudAlertSystem:
     """
@@ -227,11 +235,11 @@ class FraudAlertSystem:
                        (LOW | MEDIUM | HIGH | CRITICAL).
         window:        Rolling window size for statistics.
         """
-        self._log_path     = Path(log_dir) / log_filename
-        self._console_min  = console_level.upper()
-        self._stats        = RollingStats(window=window)
-        self._lock         = Lock()
-        self._alert_count  = 0
+        self._log_path = Path(log_dir) / log_filename
+        self._console_min = console_level.upper()
+        self._stats = RollingStats(window=window)
+        self._lock = Lock()
+        self._alert_count = 0
 
         # Tier severity ordering for console threshold filtering
         self._tier_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
@@ -247,7 +255,7 @@ class FraudAlertSystem:
         transaction_id: str,
         result: dict,
         amount: float = 0.0,
-    ) -> Optional[AlertRecord]:
+    ) -> AlertRecord | None:
         """
         Process a single prediction result.
 
@@ -261,9 +269,9 @@ class FraudAlertSystem:
         -------
         AlertRecord if the prediction is fraud, else None.
         """
-        prediction  = result.get("prediction", "legitimate")
+        prediction = result.get("prediction", "legitimate")
         probability = float(result.get("probability", 0.0))
-        risk_tier   = result.get("risk_tier", "LOW")
+        risk_tier = result.get("risk_tier", "LOW")
 
         self._stats.record(prediction, risk_tier)
 
@@ -313,12 +321,14 @@ class FraudAlertSystem:
 
         policy = ALERT_POLICY.get(alert.risk_tier, ALERT_POLICY["LOW"])
         colour = policy["colour"]
-        icon   = policy["icon"]
-        auto   = "AUTO-BLOCKED" if policy["auto_block"] else "FLAGGED"
+        icon = policy["icon"]
+        auto = "AUTO-BLOCKED" if policy["auto_block"] else "FLAGGED"
 
         print()
         print(_c("╔" + "═" * 68 + "╗", BOLD, colour))
-        print(_c(f"║  {icon}  FRAUD ALERT #{count:<5}  [{alert.risk_tier}]  {auto:<15}", BOLD, colour))
+        print(
+            _c(f"║  {icon}  FRAUD ALERT #{count:<5}  [{alert.risk_tier}]  {auto:<15}", BOLD, colour)
+        )
         print(_c("╠" + "═" * 68 + "╣", colour))
         print(f"  Transaction  : {_c(alert.transaction_id, CYAN)}")
         print(f"  Timestamp    : {alert.timestamp}")
@@ -356,6 +366,7 @@ class FraudAlertSystem:
 
 # ── Standalone log tail monitor ───────────────────────────────────────────────
 
+
 def tail_log_monitor(log_file: str, poll_interval: float = 0.5) -> None:
     """
     Tail a prediction JSONL log file and re-emit alerts to the console.
@@ -375,13 +386,13 @@ def tail_log_monitor(log_file: str, poll_interval: float = 0.5) -> None:
 
     seen_lines = 0
     # Skip lines already in the file on startup
-    with open(path, "r") as f:
+    with open(path) as f:
         for _ in f:
             seen_lines += 1
     logger.info("Fast-forwarded past %d existing log lines.", seen_lines)
 
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             # Seek to current end
             f.seek(0, os.SEEK_END)
             while True:
@@ -414,6 +425,7 @@ def tail_log_monitor(log_file: str, poll_interval: float = 0.5) -> None:
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
+
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(

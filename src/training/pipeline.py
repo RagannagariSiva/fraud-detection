@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Logging setup (called from main.py before anything else) ──────────────────
+
 
 def setup_logging(log_path: str = "logs/training.log") -> None:
     """Configure root logger to write to both stdout and a rotating log file."""
@@ -78,6 +80,7 @@ def load_config(path: str = "config/config.yaml") -> dict[str, Any]:
 
 # ── Main pipeline ──────────────────────────────────────────────────────────────
 
+
 def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     """
     Execute the complete training pipeline and return a model comparison table.
@@ -108,16 +111,16 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     from src.training.train_model import train_all_models
 
     # Unpack config sections with clear local names
-    data_cfg   = cfg["data"]
-    prep_cfg   = {**data_cfg, **cfg["preprocessing"]}
-    feat_cfg   = cfg.get("features", {})
+    data_cfg = cfg["data"]
+    prep_cfg = {**data_cfg, **cfg["preprocessing"]}
+    feat_cfg = cfg.get("features", {})
     resamp_cfg = {**cfg.get("resampling", {}), "random_state": data_cfg["random_state"]}
-    model_cfg  = cfg.get("models", {})
-    train_cfg  = cfg["training"]
+    model_cfg = cfg.get("models", {})
+    train_cfg = cfg["training"]
     mlflow_cfg = cfg.get("mlflow", {})
-    drift_cfg  = cfg.get("drift_detection", {})
+    drift_cfg = cfg.get("drift_detection", {})
 
-    model_dir  = train_cfg["model_dir"]
+    model_dir = train_cfg["model_dir"]
     report_dir = train_cfg["report_dir"]
     Path(report_dir).mkdir(parents=True, exist_ok=True)
     Path(model_dir).mkdir(parents=True, exist_ok=True)
@@ -137,8 +140,8 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     # ── Phase 3: Feature engineering ─────────────────────────────────────────
     _phase("3 — FEATURE ENGINEERING")
     X_train = build_features(X_train, feat_cfg)
-    X_val   = build_features(X_val,   feat_cfg)
-    X_test  = build_features(X_test,  feat_cfg)
+    X_val = build_features(X_val, feat_cfg)
+    X_test = build_features(X_test, feat_cfg)
 
     # Re-save feature names now that engineering has added columns
     feature_names = list(X_train.columns)
@@ -149,7 +152,8 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     # ── Phase 4: Resampling (training set only) ───────────────────────────────
     _phase("4 — RESAMPLING  [train set only]")
     X_train_res, y_train_res = resample(
-        X_train, y_train,
+        X_train,
+        y_train,
         strategy=resamp_cfg.get("strategy", "smote"),
         cfg=resamp_cfg,
     )
@@ -159,8 +163,10 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     if tune_cfg.get("enabled", False):
         _phase("5 — HYPERPARAMETER TUNING  [Optuna]")
         from src.training.tuning import tune_xgboost
+
         best_params = tune_xgboost(
-            X_train_res, y_train_res,
+            X_train_res,
+            y_train_res,
             n_trials=int(tune_cfg.get("n_trials", 60)),
             cv_folds=int(tune_cfg.get("cv_folds", 5)),
             scoring=tune_cfg.get("scoring", "average_precision"),
@@ -174,8 +180,10 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     # ── Phase 6: Training ─────────────────────────────────────────────────────
     _phase("6 — MODEL TRAINING")
     models = train_all_models(
-        X_train_res, y_train_res,
-        X_val.values, y_val.values,
+        X_train_res,
+        y_train_res,
+        X_val.values,
+        y_val.values,
         feature_names=feature_names,
         cfg=model_cfg,
         model_dir=model_dir,
@@ -191,8 +199,10 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
     _phase("8 — EVALUATION")
     df_results = generate_full_report(
         models,
-        X_test.values, y_test.values,
-        feature_names, report_dir,
+        X_test.values,
+        y_test.values,
+        feature_names,
+        report_dir,
     )
 
     results_path = Path(train_cfg["results_path"])
@@ -206,7 +216,9 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
 
     # ── Phase 10: SHAP explainability plots ───────────────────────────────────
     _phase("10 — SHAP EXPLAINABILITY")
-    primary_key = "XGBoost" if train_cfg.get("primary_model", "xgboost") == "xgboost" else "Random Forest"
+    primary_key = (
+        "XGBoost" if train_cfg.get("primary_model", "xgboost") == "xgboost" else "Random Forest"
+    )
     _run_shap_analysis(models, X_test, report_dir, primary_model_key=primary_key)
 
     # ── Phase 11: Business impact estimate ────────────────────────────────────
@@ -218,6 +230,7 @@ def run_pipeline(cfg: dict[str, Any]) -> pd.DataFrame:
 
 
 # ── Private helpers ────────────────────────────────────────────────────────────
+
 
 def _phase(label: str) -> None:
     """Print a clearly visible phase separator to the log."""
@@ -235,6 +248,7 @@ def _save_drift_baseline(X_train: pd.DataFrame, drift_cfg: dict[str, Any]) -> No
     """
     try:
         from src.monitoring.drift_detector import DriftDetector
+
         baseline_path = drift_cfg.get("baseline_path", "models/drift_baseline.json")
         detector = DriftDetector.from_training_data(X_train)
         detector.save(baseline_path)
@@ -247,8 +261,8 @@ def _save_drift_baseline(X_train: pd.DataFrame, drift_cfg: dict[str, Any]) -> No
 def _tune_threshold(
     train_cfg: dict[str, Any],
     model_dir: str,
-    X_val: "np.ndarray",  # noqa: F821
-    y_val: "np.ndarray",
+    X_val: np.ndarray,  # noqa: F821
+    y_val: np.ndarray,
 ) -> None:
     """
     Find the decision threshold that maximises Youden's J statistic on the
@@ -263,6 +277,7 @@ def _tune_threshold(
 
     try:
         from src.inference.predictor import FraudPredictor
+
         predictor = FraudPredictor(
             model_name=f"{primary}_model",
             model_dir=model_dir,
@@ -272,7 +287,8 @@ def _tune_threshold(
         best_threshold = predictor.set_threshold_youden(X_val, y_val)
         logger.info(
             "Threshold tuned (%s): %.4f  → saved to predictor",
-            model_key, best_threshold,
+            model_key,
+            best_threshold,
         )
     except FileNotFoundError:
         logger.warning("Could not load %s for threshold tuning.", model_key)
@@ -312,8 +328,8 @@ def _run_shap_analysis(
 
 def _log_business_impact(
     models: dict[str, Any],
-    X_test: "np.ndarray",
-    y_test: "np.ndarray",
+    X_test: np.ndarray,
+    y_test: np.ndarray,
     primary_model_key: str = "XGBoost",
 ) -> None:
     """
@@ -323,7 +339,7 @@ def _log_business_impact(
     Uses the cost assumptions defined in ``src/models/evaluate_model`` —
     $80 average fraud loss per missed transaction, $5 per false alert.
     """
-    import numpy as np
+
     from src.models.evaluate_model import compute_business_impact
 
     model = models.get(primary_model_key)
@@ -332,9 +348,9 @@ def _log_business_impact(
 
     try:
         threshold = 0.40  # default; will reflect Youden-tuned value after Phase 9
-        probs     = model.predict_proba(X_test)[:, 1]
-        preds     = (probs >= threshold).astype(int)
-        impact    = compute_business_impact(y_test, preds)
+        probs = model.predict_proba(X_test)[:, 1]
+        preds = (probs >= threshold).astype(int)
+        impact = compute_business_impact(y_test, preds)
 
         logger.info(
             "\n%s\n  BUSINESS IMPACT ESTIMATE  (test set, threshold=%.2f)\n%s\n"
@@ -343,7 +359,9 @@ def _log_business_impact(
             "  Review cost:     $%,.0f\n"
             "  Net benefit:     $%,.0f\n"
             "  ROI:             %.1f%%\n%s",
-            "─" * 56, threshold, "─" * 56,
+            "─" * 56,
+            threshold,
+            "─" * 56,
             impact["estimated_loss_caught"],
             impact["estimated_loss_missed"],
             impact["total_review_cost"],

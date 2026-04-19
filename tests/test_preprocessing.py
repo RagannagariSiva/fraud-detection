@@ -6,12 +6,12 @@ Tests for data loading, cleaning, and scaling.
 Run: pytest tests/test_preprocessing.py -v
 """
 
+from pathlib import Path
+
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
-import joblib
-from pathlib import Path
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -128,8 +128,9 @@ def test_fit_scale_save_does_not_modify_unscaled_cols(sample_df, tmp_path):
         scaler_type="robust",
         scaler_path=scaler_path,
     )
-    pd.testing.assert_series_equal(X["V1"].reset_index(drop=True),
-                                   df_scaled["V1"].reset_index(drop=True))
+    pd.testing.assert_series_equal(
+        X["V1"].reset_index(drop=True), df_scaled["V1"].reset_index(drop=True)
+    )
 
 
 def test_transform_single_uses_saved_scaler(sample_df, tmp_path):

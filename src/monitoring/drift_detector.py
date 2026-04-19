@@ -50,7 +50,6 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -61,49 +60,51 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
+
 @dataclass
 class DriftConfig:
     """Thresholds and settings that control how sensitive drift detection is."""
 
-    psi_warning:     float = 0.10   # Moderate drift: flag for investigation
-    psi_critical:    float = 0.25   # Significant drift: recommend retrain
-    ks_alpha:        float = 0.01   # KS test significance level (p < alpha → drift)
-    min_sample_size: int   = 200    # Smaller batches are statistically unreliable
-    n_bins:          int   = 10     # Histogram bins for PSI calculation
-    monitored_features: Optional[list[str]] = None  # None = all numeric features
+    psi_warning: float = 0.10  # Moderate drift: flag for investigation
+    psi_critical: float = 0.25  # Significant drift: recommend retrain
+    ks_alpha: float = 0.01  # KS test significance level (p < alpha → drift)
+    min_sample_size: int = 200  # Smaller batches are statistically unreliable
+    n_bins: int = 10  # Histogram bins for PSI calculation
+    monitored_features: list[str] | None = None  # None = all numeric features
 
 
 # ── Result types ───────────────────────────────────────────────────────────────
+
 
 @dataclass
 class FeatureDriftResult:
     """Drift test results for a single feature."""
 
-    feature:           str
-    psi:               float
-    psi_level:         str    # "none" | "warning" | "critical"
-    ks_statistic:      float
-    ks_p_value:        float
+    feature: str
+    psi: float
+    psi_level: str  # "none" | "warning" | "critical"
+    ks_statistic: float
+    ks_p_value: float
     ks_drift_detected: bool
-    baseline_mean:     float
-    current_mean:      float
-    mean_shift_pct:    float  # Percentage change in mean relative to baseline
+    baseline_mean: float
+    current_mean: float
+    mean_shift_pct: float  # Percentage change in mean relative to baseline
 
 
 @dataclass
 class DriftReport:
     """Full drift detection report for one production batch."""
 
-    timestamp:              str
-    baseline_size:          int
-    current_size:           int
-    n_features_tested:      int
-    n_features_drifted:     int   # PSI > warning OR KS significant
-    n_features_critical:    int   # PSI > critical
+    timestamp: str
+    baseline_size: int
+    current_size: int
+    n_features_tested: int
+    n_features_drifted: int  # PSI > warning OR KS significant
+    n_features_critical: int  # PSI > critical
     overall_drift_detected: bool
-    recommendation:         str
-    feature_results:        list[FeatureDriftResult] = field(default_factory=list)
-    prediction_drift:       Optional[dict] = None
+    recommendation: str
+    feature_results: list[FeatureDriftResult] = field(default_factory=list)
+    prediction_drift: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -126,14 +127,11 @@ class DriftReport:
             f"║  Critical drift   : {self.n_features_critical:<{width - 21}}║",
             f"║  Overall drift    : {'⚠️  YES' if self.overall_drift_detected else '✅ NO':<{width - 21}}║",
             f"╠{'═' * width}╣",
-            f"║  {self.recommendation[:width - 2]:<{width - 2}}║",
+            f"║  {self.recommendation[: width - 2]:<{width - 2}}║",
             f"╚{'═' * width}╝",
         ]
 
-        drifted = [
-            r for r in self.feature_results
-            if r.psi > 0.10 or r.ks_drift_detected
-        ]
+        drifted = [r for r in self.feature_results if r.psi > 0.10 or r.ks_drift_detected]
         if drifted:
             lines.append("\nDrifted features (sorted by PSI descending):")
             for r in sorted(drifted, key=lambda x: x.psi, reverse=True):
@@ -146,6 +144,7 @@ class DriftReport:
 
 
 # ── Core detector ──────────────────────────────────────────────────────────────
+
 
 class DriftDetector:
     """
@@ -167,13 +166,11 @@ class DriftDetector:
     def __init__(
         self,
         baseline_stats: dict[str, dict],
-        config: Optional[DriftConfig] = None,
+        config: DriftConfig | None = None,
     ) -> None:
         self._baseline = baseline_stats
         self._cfg = config or DriftConfig()
-        logger.info(
-            "DriftDetector ready — tracking %d features", len(baseline_stats)
-        )
+        logger.info("DriftDetector ready — tracking %d features", len(baseline_stats))
 
     # ── Constructors ───────────────────────────────────────────────────────────
 
@@ -181,8 +178,8 @@ class DriftDetector:
     def from_training_data(
         cls,
         X_train: pd.DataFrame,
-        config: Optional[DriftConfig] = None,
-    ) -> "DriftDetector":
+        config: DriftConfig | None = None,
+    ) -> DriftDetector:
         """
         Compute and store baseline statistics from the training DataFrame.
 
@@ -207,22 +204,20 @@ class DriftDetector:
             col = X_train[feat].dropna()
             counts, edges = np.histogram(col.values, bins=cfg.n_bins)
             baseline_stats[feat] = {
-                "mean":        float(col.mean()),
-                "std":         float(col.std()),
-                "min":         float(col.min()),
-                "max":         float(col.max()),
-                "p25":         float(col.quantile(0.25)),
-                "p50":         float(col.quantile(0.50)),
-                "p75":         float(col.quantile(0.75)),
+                "mean": float(col.mean()),
+                "std": float(col.std()),
+                "min": float(col.min()),
+                "max": float(col.max()),
+                "p25": float(col.quantile(0.25)),
+                "p50": float(col.quantile(0.50)),
+                "p75": float(col.quantile(0.75)),
                 # Store the actual histogram for PSI — not a parametric approximation
                 "hist_counts": counts.tolist(),
-                "hist_edges":  edges.tolist(),
-                "n":           int(len(col)),
+                "hist_edges": edges.tolist(),
+                "n": int(len(col)),
                 # Store a sample of raw values for the KS test so we compare
                 # empirical distributions, not normal approximations
-                "ks_sample":   col.sample(
-                    n=min(2000, len(col)), random_state=42
-                ).tolist(),
+                "ks_sample": col.sample(n=min(2000, len(col)), random_state=42).tolist(),
             }
 
         logger.info(
@@ -233,16 +228,15 @@ class DriftDetector:
         return cls(baseline_stats, config=cfg)
 
     @classmethod
-    def load(cls, path: str) -> "DriftDetector":
+    def load(cls, path: str) -> DriftDetector:
         """Load a previously saved detector from a JSON file."""
         with open(path) as f:
             data = json.load(f)
         cfg_dict = data.get("config", {})
         # DriftConfig.monitored_features may be None — handle gracefully
-        cfg = DriftConfig(**{
-            k: v for k, v in cfg_dict.items()
-            if k in DriftConfig.__dataclass_fields__
-        })
+        cfg = DriftConfig(
+            **{k: v for k, v in cfg_dict.items() if k in DriftConfig.__dataclass_fields__}
+        )
         return cls(data["baseline_stats"], config=cfg)
 
     def save(self, path: str) -> None:
@@ -250,8 +244,8 @@ class DriftDetector:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "baseline_stats": self._baseline,
-            "config":         asdict(self._cfg),
-            "created_at":     datetime.now(tz=timezone.utc).isoformat(),
+            "config": asdict(self._cfg),
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
         }
         with open(path, "w") as f:
             json.dump(payload, f, indent=2)
@@ -262,7 +256,7 @@ class DriftDetector:
     def check(
         self,
         current: pd.DataFrame,
-        prediction_probs: Optional[np.ndarray] = None,
+        prediction_probs: np.ndarray | None = None,
     ) -> DriftReport:
         """
         Run drift detection on a batch of live transactions.
@@ -293,23 +287,19 @@ class DriftDetector:
             )
 
         features_to_check = [
-            f for f in (self._cfg.monitored_features or self._baseline.keys())
+            f
+            for f in (self._cfg.monitored_features or self._baseline.keys())
             if f in current.columns and f in self._baseline
         ]
 
         feature_results: list[FeatureDriftResult] = [
-            self._check_feature(feat, current[feat].dropna().values)
-            for feat in features_to_check
+            self._check_feature(feat, current[feat].dropna().values) for feat in features_to_check
         ]
 
         n_drifted = sum(
-            1 for r in feature_results
-            if r.psi > self._cfg.psi_warning or r.ks_drift_detected
+            1 for r in feature_results if r.psi > self._cfg.psi_warning or r.ks_drift_detected
         )
-        n_critical = sum(
-            1 for r in feature_results
-            if r.psi > self._cfg.psi_critical
-        )
+        n_critical = sum(1 for r in feature_results if r.psi > self._cfg.psi_critical)
 
         # Overall drift: any critical feature, or >= 15% of features drifting
         drift_threshold = max(3, int(len(feature_results) * 0.15))
@@ -360,9 +350,7 @@ class DriftDetector:
 
     # ── Per-feature logic ──────────────────────────────────────────────────────
 
-    def _check_feature(
-        self, feature: str, current_vals: np.ndarray
-    ) -> FeatureDriftResult:
+    def _check_feature(self, feature: str, current_vals: np.ndarray) -> FeatureDriftResult:
         baseline = self._baseline[feature]
 
         # PSI: re-bin current values using training histogram edges
@@ -382,11 +370,9 @@ class DriftDetector:
         # KS test: compare against the actual saved baseline sample,
         # not a parametric approximation of it
         baseline_sample = np.array(baseline["ks_sample"])
-        ks_stat, ks_p = stats.ks_2samp(
-            baseline_sample, current_vals[: len(baseline_sample)]
-        )
+        ks_stat, ks_p = stats.ks_2samp(baseline_sample, current_vals[: len(baseline_sample)])
 
-        current_mean  = float(np.mean(current_vals))
+        current_mean = float(np.mean(current_vals))
         baseline_mean = float(baseline["mean"])
         denom = max(abs(baseline_mean), 1e-9)
         mean_shift_pct = (current_mean - baseline_mean) / denom * 100.0
@@ -406,15 +392,16 @@ class DriftDetector:
     def _check_prediction_drift(self, probs: np.ndarray) -> dict:
         """Summarise the model's output distribution for this batch."""
         return {
-            "mean_probability":  round(float(np.mean(probs)), 6),
-            "std_probability":   round(float(np.std(probs)), 6),
+            "mean_probability": round(float(np.mean(probs)), 6),
+            "std_probability": round(float(np.std(probs)), 6),
             "fraud_rate_at_040": round(float((probs >= 0.40).mean()), 6),
             "fraud_rate_at_050": round(float((probs >= 0.50).mean()), 6),
-            "p90_probability":   round(float(np.percentile(probs, 90)), 6),
+            "p90_probability": round(float(np.percentile(probs, 90)), 6),
         }
 
 
 # ── PSI helper ─────────────────────────────────────────────────────────────────
+
 
 def _compute_psi(expected: np.ndarray, actual: np.ndarray, epsilon: float = 1e-7) -> float:
     """
@@ -427,13 +414,14 @@ def _compute_psi(expected: np.ndarray, actual: np.ndarray, epsilon: float = 1e-7
     do not affect the result.
     """
     exp = np.clip(expected.astype(float), epsilon, None)
-    act = np.clip(actual.astype(float),   epsilon, None)
+    act = np.clip(actual.astype(float), epsilon, None)
     exp /= exp.sum()
     act /= act.sum()
     return float(np.sum((act - exp) * np.log(act / exp)))
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
+
 
 def _main() -> None:
     import argparse
@@ -446,15 +434,19 @@ def _main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--baseline", required=True, help="Training data CSV path")
-    parser.add_argument("--current",  required=True, help="Live/incoming data CSV path")
-    parser.add_argument("--report",   default="reports/drift_report.json",
-                        help="Output path for the JSON drift report")
-    parser.add_argument("--save-detector", default=None,
-                        help="Persist the fitted detector to this JSON path")
+    parser.add_argument("--current", required=True, help="Live/incoming data CSV path")
+    parser.add_argument(
+        "--report",
+        default="reports/drift_report.json",
+        help="Output path for the JSON drift report",
+    )
+    parser.add_argument(
+        "--save-detector", default=None, help="Persist the fitted detector to this JSON path"
+    )
     args = parser.parse_args()
 
     baseline_df = pd.read_csv(args.baseline)
-    current_df  = pd.read_csv(args.current)
+    current_df = pd.read_csv(args.current)
 
     detector = DriftDetector.from_training_data(baseline_df)
     if args.save_detector:

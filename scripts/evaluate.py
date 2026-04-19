@@ -55,8 +55,8 @@ def _load_test_data(
     Load test data from a CSV path or re-run preprocessing on the original
     raw dataset to recover the same test split used during training.
     """
-    import yaml
     import joblib
+    import yaml
 
     with open(config_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
@@ -75,6 +75,7 @@ def _load_test_data(
 
     # Re-derive the test split with the same random state as training
     from src.data.preprocessing import preprocess_pipeline
+
     data_cfg = cfg["data"]
     prep_cfg = {**data_cfg, **cfg["preprocessing"]}
     _, _, X_test, _, _, y_test, _ = preprocess_pipeline(
@@ -82,10 +83,12 @@ def _load_test_data(
         cfg=prep_cfg,
     )
     from src.features.feature_engineering import build_features
+
     X_test_eng = build_features(X_test, cfg.get("features", {}))
     logger.info(
         "Re-derived test split: %d rows, %d features",
-        len(X_test_eng), X_test_eng.shape[1],
+        len(X_test_eng),
+        X_test_eng.shape[1],
     )
     return X_test_eng.values, y_test.values, list(X_test_eng.columns)
 
@@ -105,9 +108,12 @@ def evaluate(
     """
     import joblib
     from sklearn.metrics import (
-        average_precision_score, roc_auc_score,
-        precision_score, recall_score, f1_score,
+        average_precision_score,
         classification_report,
+        f1_score,
+        precision_score,
+        recall_score,
+        roc_auc_score,
     )
 
     # ── Load model ────────────────────────────────────────────────────────────
@@ -128,17 +134,17 @@ def evaluate(
     preds = (probs >= threshold).astype(int)
 
     metrics = {
-        "model":     model_name,
+        "model": model_name,
         "threshold": threshold,
         "n_samples": int(len(y_test)),
-        "n_fraud":   int(y_test.sum()),
+        "n_fraud": int(y_test.sum()),
         "fraud_rate": float(y_test.mean()),
-        "pr_auc":    round(float(average_precision_score(y_test, probs)), 6),
-        "roc_auc":   round(float(roc_auc_score(y_test, probs)), 6),
+        "pr_auc": round(float(average_precision_score(y_test, probs)), 6),
+        "roc_auc": round(float(roc_auc_score(y_test, probs)), 6),
         "precision": round(float(precision_score(y_test, preds, zero_division=0)), 6),
-        "recall":    round(float(recall_score(y_test, preds, zero_division=0)), 6),
-        "f1":        round(float(f1_score(y_test, preds, zero_division=0)), 6),
-        "fnr":       round(float(1 - recall_score(y_test, preds, zero_division=0)), 6),
+        "recall": round(float(recall_score(y_test, preds, zero_division=0)), 6),
+        "f1": round(float(f1_score(y_test, preds, zero_division=0)), 6),
+        "fnr": round(float(1 - recall_score(y_test, preds, zero_division=0)), 6),
     }
 
     # ── Print results ─────────────────────────────────────────────────────────
@@ -152,15 +158,18 @@ def evaluate(
         else:
             print(f"  {k:<20} {v}")
 
-    print(f"\n{classification_report(y_test, preds, target_names=['Legitimate', 'Fraud'], digits=4)}")
+    print(
+        f"\n{classification_report(y_test, preds, target_names=['Legitimate', 'Fraud'], digits=4)}"
+    )
 
     # ── Business impact ───────────────────────────────────────────────────────
     if business_impact:
         from src.models.evaluate_model import compute_business_impact
+
         impact = compute_business_impact(y_test, preds)
         metrics["business_impact"] = impact
 
-        print(f"\n  BUSINESS IMPACT ESTIMATE")
+        print("\n  BUSINESS IMPACT ESTIMATE")
         print(f"  {'─' * 40}")
         print(f"  Fraud caught:     ${impact['estimated_loss_caught']:>10,.2f}")
         print(f"  Fraud missed:     ${impact['estimated_loss_missed']:>10,.2f}")
@@ -185,25 +194,32 @@ def _parse_args() -> argparse.Namespace:
         description="Evaluate a trained FraudGuard model on test data",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--model",    default="xgboost_model",
-                   help="Model name (stem of .pkl file in models/)")
-    p.add_argument("--data",     default=None,
-                   help="Path to CSV with Class column (default: re-derive test split)")
-    p.add_argument("--output",   default="reports/evaluation_results.json",
-                   help="Path to save JSON results")
-    p.add_argument("--threshold", type=float, default=0.40,
-                   help="Decision threshold for hard predictions")
-    p.add_argument("--business-impact", action="store_true",
-                   help="Include estimated financial impact in output")
+    p.add_argument(
+        "--model", default="xgboost_model", help="Model name (stem of .pkl file in models/)"
+    )
+    p.add_argument(
+        "--data", default=None, help="Path to CSV with Class column (default: re-derive test split)"
+    )
+    p.add_argument(
+        "--output", default="reports/evaluation_results.json", help="Path to save JSON results"
+    )
+    p.add_argument(
+        "--threshold", type=float, default=0.40, help="Decision threshold for hard predictions"
+    )
+    p.add_argument(
+        "--business-impact",
+        action="store_true",
+        help="Include estimated financial impact in output",
+    )
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
     evaluate(
-        model_name      =args.model,
-        data_path       =args.data,
-        output_path     =args.output,
-        threshold       =args.threshold,
-        business_impact =args.business_impact,
+        model_name=args.model,
+        data_path=args.data,
+        output_path=args.output,
+        threshold=args.threshold,
+        business_impact=args.business_impact,
     )

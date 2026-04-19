@@ -11,12 +11,11 @@ import tempfile
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from src.monitoring.drift_detector import DriftDetector, DriftConfig, _compute_psi
-
+from src.monitoring.drift_detector import DriftConfig, DriftDetector, _compute_psi
 
 # ── PSI tests ─────────────────────────────────────────────────────────────────
+
 
 class TestComputePSI:
     def test_identical_distributions_psi_near_zero(self):
@@ -26,7 +25,7 @@ class TestComputePSI:
 
     def test_very_different_distributions_high_psi(self):
         expected = np.array([0.5, 0.3, 0.15, 0.04, 0.01])
-        actual   = np.array([0.01, 0.04, 0.15, 0.3, 0.5])
+        actual = np.array([0.01, 0.04, 0.15, 0.3, 0.5])
         psi = _compute_psi(expected, actual)
         assert psi > 0.25
 
@@ -40,11 +39,12 @@ class TestComputePSI:
 
 # ── DriftDetector tests ───────────────────────────────────────────────────────
 
+
 def _make_baseline_df(n: int = 1000, seed: int = 42) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     df = pd.DataFrame({f"V{i}": rng.normal(0, 1.5, n) for i in range(1, 6)})
     df["Amount"] = rng.exponential(88, n)
-    df["Time"]   = rng.uniform(0, 172_800, n)
+    df["Time"] = rng.uniform(0, 172_800, n)
     return df
 
 
@@ -108,27 +108,31 @@ class TestDriftDetectorCheck:
         rng = np.random.default_rng(7)
         shifted = pd.DataFrame({f"V{i}": rng.normal(8, 1.5, 500) for i in range(1, 6)})
         shifted["Amount"] = rng.exponential(88, 500)
-        shifted["Time"]   = rng.uniform(0, 172_800, 500)
+        shifted["Time"] = rng.uniform(0, 172_800, 500)
         report = detector.check(shifted)
         assert report.n_features_drifted > 0
 
     def test_report_has_all_fields(self):
         df = _make_baseline_df(n=500)
         detector = DriftDetector.from_training_data(df)
-        current  = _make_baseline_df(n=300, seed=100)
+        current = _make_baseline_df(n=300, seed=100)
         report = detector.check(current)
         d = report.to_dict()
         for key in (
-            "timestamp", "baseline_size", "current_size",
-            "n_features_tested", "n_features_drifted",
-            "overall_drift_detected", "recommendation",
+            "timestamp",
+            "baseline_size",
+            "current_size",
+            "n_features_tested",
+            "n_features_drifted",
+            "overall_drift_detected",
+            "recommendation",
         ):
             assert key in d, f"Missing key in DriftReport: {key}"
 
     def test_report_to_json_valid(self):
         df = _make_baseline_df(n=300)
         detector = DriftDetector.from_training_data(df)
-        current  = _make_baseline_df(n=300, seed=55)
+        current = _make_baseline_df(n=300, seed=55)
         report = detector.check(current)
         parsed = json.loads(report.to_json())
         assert "overall_drift_detected" in parsed
@@ -136,9 +140,9 @@ class TestDriftDetectorCheck:
     def test_prediction_drift_recorded_when_probs_supplied(self):
         df = _make_baseline_df(n=500)
         detector = DriftDetector.from_training_data(df)
-        current  = _make_baseline_df(n=300, seed=8)
-        probs    = np.random.default_rng(3).uniform(0, 0.3, 300)
-        report   = detector.check(current, prediction_probs=probs)
+        current = _make_baseline_df(n=300, seed=8)
+        probs = np.random.default_rng(3).uniform(0, 0.3, 300)
+        report = detector.check(current, prediction_probs=probs)
         assert report.prediction_drift is not None
         assert "mean_probability" in report.prediction_drift
 
@@ -148,15 +152,17 @@ class TestDriftDetectorCheck:
         config = DriftConfig(min_sample_size=10)
         detector = DriftDetector.from_training_data(df, config=config)
         current = _make_baseline_df(n=50, seed=6)
-        report  = detector.check(current)
+        report = detector.check(current)
         assert report is not None
 
 
 # ── ModelMonitor tests ────────────────────────────────────────────────────────
 
+
 class TestModelMonitor:
     def test_records_and_snapshots(self):
         from src.monitoring.model_monitor import ModelMonitor
+
         monitor = ModelMonitor()
         monitor.record_prediction(probability=0.05, risk_tier="LOW", latency_ms=10.0)
         monitor.record_prediction(probability=0.85, risk_tier="CRITICAL", latency_ms=12.0)
@@ -165,6 +171,7 @@ class TestModelMonitor:
 
     def test_fraud_rate_calculated(self):
         from src.monitoring.model_monitor import ModelMonitor
+
         monitor = ModelMonitor()
         for _ in range(10):
             monitor.record_prediction(probability=0.9, risk_tier="CRITICAL", latency_ms=5.0)
@@ -176,6 +183,7 @@ class TestModelMonitor:
 
     def test_latency_percentiles_populated(self):
         from src.monitoring.model_monitor import ModelMonitor
+
         monitor = ModelMonitor()
         for ms in [5.0, 8.0, 12.0, 100.0, 15.0]:
             monitor.record_prediction(probability=0.1, risk_tier="LOW", latency_ms=ms)
@@ -186,6 +194,7 @@ class TestModelMonitor:
 
     def test_prometheus_format(self):
         from src.monitoring.model_monitor import ModelMonitor
+
         monitor = ModelMonitor()
         monitor.record_prediction(probability=0.3, risk_tier="MEDIUM", latency_ms=7.0)
         prom = monitor.to_prometheus()
@@ -195,6 +204,7 @@ class TestModelMonitor:
 
     def test_health_check_healthy_default(self):
         from src.monitoring.model_monitor import ModelMonitor
+
         monitor = ModelMonitor()
         health = monitor.health_check()
         # Fresh monitor with no traffic → healthy

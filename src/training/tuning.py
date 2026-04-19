@@ -82,7 +82,7 @@ def tune_xgboost(
     scale_pos = float((y_train == 0).sum()) / max(float((y_train == 1).sum()), 1)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
 
-    def objective(trial: "optuna.Trial") -> float:
+    def objective(trial: optuna.Trial) -> float:
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 800),
             "max_depth": trial.suggest_int("max_depth", 3, 10),
@@ -120,6 +120,7 @@ def tune_xgboost(
 
     logger.info(
         "Best PR-AUC=%.4f  params=%s",
-        study.best_value, best,
+        study.best_value,
+        best,
     )
     return best

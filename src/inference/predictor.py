@@ -50,9 +50,9 @@ logger = logging.getLogger(__name__)
 # Risk tier boundaries: (upper_bound_exclusive, tier_label, recommended_action)
 # Thresholds were calibrated on the Kaggle val set; adjust for your deployment.
 _RISK_TIERS: list[tuple[float, str, str]] = [
-    (0.15, "LOW",      "Transaction appears normal. No action required."),
-    (0.40, "MEDIUM",   "Mildly suspicious. Consider a soft review."),
-    (0.70, "HIGH",     "Likely fraudulent. Manual review recommended."),
+    (0.15, "LOW", "Transaction appears normal. No action required."),
+    (0.40, "MEDIUM", "Mildly suspicious. Consider a soft review."),
+    (0.70, "HIGH", "Likely fraudulent. Manual review recommended."),
     (1.01, "CRITICAL", "High fraud probability. Block and alert immediately."),
 ]
 
@@ -85,12 +85,12 @@ class FraudPredictor:
         threshold: float = 0.40,
     ) -> None:
         self.model_name = model_name
-        self.threshold  = threshold
+        self.threshold = threshold
         self._model_dir = Path(model_dir)
         self._scale_cols = ("Amount", "Time")
 
-        self.model         = self._load_artifact(f"{model_name}.pkl")
-        self.scaler        = self._load_artifact("scaler.pkl")
+        self.model = self._load_artifact(f"{model_name}.pkl")
+        self.scaler = self._load_artifact("scaler.pkl")
         self.feature_names: list[str] = self._load_artifact("feature_names.pkl")
 
         logger.info(
@@ -124,17 +124,17 @@ class FraudPredictor:
             message       — recommended action for this risk tier
         """
         feature_array = self._build_feature_array(transaction)
-        probability   = float(self.model.predict_proba(feature_array)[0, 1])
-        is_fraud      = probability >= self.threshold
+        probability = float(self.model.predict_proba(feature_array)[0, 1])
+        is_fraud = probability >= self.threshold
         tier, message = _get_risk_tier(probability)
 
         result: dict[str, Any] = {
-            "prediction":     "fraud" if is_fraud else "legitimate",
-            "probability":    round(probability, 6),
-            "is_fraud":       is_fraud,
-            "risk_tier":      tier,
+            "prediction": "fraud" if is_fraud else "legitimate",
+            "probability": round(probability, 6),
+            "is_fraud": is_fraud,
+            "risk_tier": tier,
             "threshold_used": self.threshold,
-            "message":        message,
+            "message": message,
         }
         _log_prediction(result)
         return result
@@ -172,6 +172,7 @@ class FraudPredictor:
         # Apply the same feature engineering used during training
         try:
             from src.features.feature_engineering import build_features
+
             eng_cfg = {
                 "add_time_features": True,
                 "add_velocity_features": False,
@@ -192,8 +193,8 @@ class FraudPredictor:
 
         # Add predictions back to the original dataframe (preserves caller's columns)
         out["probability"] = probs
-        out["prediction"]  = np.where(probs >= self.threshold, "fraud", "legitimate")
-        out["risk_tier"]   = [_get_risk_tier(p)[0] for p in probs]
+        out["prediction"] = np.where(probs >= self.threshold, "fraud", "legitimate")
+        out["risk_tier"] = [_get_risk_tier(p)[0] for p in probs]
         return out
 
     def set_threshold_youden(
@@ -223,16 +224,15 @@ class FraudPredictor:
         float
             The calibrated threshold. Also updates ``self.threshold`` in place.
         """
-        probs  = self.model.predict_proba(X_val)[:, 1]
+        probs = self.model.predict_proba(X_val)[:, 1]
         fpr, tpr, thresholds = roc_curve(y_val, probs)
 
-        j_scores  = tpr - fpr
-        best_idx  = int(np.argmax(j_scores))
+        j_scores = tpr - fpr
+        best_idx = int(np.argmax(j_scores))
         best_threshold = float(thresholds[best_idx])
 
         logger.info(
-            "Threshold calibrated via Youden's J: %.4f  "
-            "(Recall=%.4f, Specificity=%.4f)",
+            "Threshold calibrated via Youden's J: %.4f  (Recall=%.4f, Specificity=%.4f)",
             best_threshold,
             tpr[best_idx],
             1 - fpr[best_idx],
@@ -246,8 +246,7 @@ class FraudPredictor:
         path = self._model_dir / filename
         if not path.exists():
             raise FileNotFoundError(
-                f"Required artifact not found: {path}\n"
-                "Run 'python main.py' to train the model."
+                f"Required artifact not found: {path}\nRun 'python main.py' to train the model."
             )
         return joblib.load(path)
 
@@ -285,15 +284,14 @@ class FraudPredictor:
         raw_base = [f"V{i}" for i in range(1, 29)] + list(self._scale_cols)
         missing_raw = set(raw_base) - set(t.keys())
         if missing_raw:
-            raise ValueError(
-                f"Transaction is missing required raw features: {sorted(missing_raw)}"
-            )
+            raise ValueError(f"Transaction is missing required raw features: {sorted(missing_raw)}")
 
         # Apply the same feature engineering pipeline used during training.
         # This is what closes the training-serving gap: the predictor and the
         # training pipeline run identical transformations.
         try:
             from src.features.feature_engineering import build_features
+
             row_df = pd.DataFrame([t])
             eng_cfg = {
                 "add_time_features": True,

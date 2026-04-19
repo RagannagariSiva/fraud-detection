@@ -34,11 +34,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import joblib
 import matplotlib
-matplotlib.use("Agg")          # headless backend — no display required
+
+matplotlib.use("Agg")  # headless backend — no display required
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -60,18 +61,19 @@ logger = logging.getLogger(__name__)
 try:
     import mlflow
     import mlflow.sklearn
+
     MLFLOW_OK = True
 except ImportError:
     MLFLOW_OK = False
     logger.warning(
-        "MLflow not installed — experiment tracking disabled. "
-        "Install with: pip install mlflow"
+        "MLflow not installed — experiment tracking disabled. Install with: pip install mlflow"
     )
 
 # ── Optional XGBoost import ────────────────────────────────────────────────────
 
 try:
     from xgboost import XGBClassifier
+
     XGB_OK = True
 except ImportError:
     XGB_OK = False
@@ -81,6 +83,7 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════════════════════
 #  MLflow context manager
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class _MlflowRun:
     """
@@ -93,19 +96,19 @@ class _MlflowRun:
     def __init__(
         self,
         experiment_name: str = "fraud-detection",
-        run_name: Optional[str] = None,
-        tracking_uri: Optional[str] = None,
+        run_name: str | None = None,
+        tracking_uri: str | None = None,
         enabled: bool = True,
     ):
         self._enabled = enabled and MLFLOW_OK
         self._experiment = experiment_name
-        self._run_name   = run_name
-        self._uri        = tracking_uri or os.getenv("MLFLOW_TRACKING_URI", "mlruns")
-        self._run        = None
+        self._run_name = run_name
+        self._uri = tracking_uri or os.getenv("MLFLOW_TRACKING_URI", "mlruns")
+        self._run = None
 
     # ── Context protocol ──────────────────────────────────────────────────────
 
-    def __enter__(self) -> "_MlflowRun":
+    def __enter__(self) -> _MlflowRun:
         if not self._enabled:
             return self
         mlflow.set_tracking_uri(self._uri)
@@ -165,13 +168,14 @@ class _MlflowRun:
         os.unlink(tmp)
 
     @property
-    def run_id(self) -> Optional[str]:
+    def run_id(self) -> str | None:
         return self._run.info.run_id if self._run else None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  Evaluation helpers
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _evaluate(
     model: Any,
@@ -187,18 +191,18 @@ def _evaluate(
     y_prob = model.predict_proba(X_val)[:, 1]
     y_pred = (y_prob >= threshold).astype(int)
 
-    pr_auc  = average_precision_score(y_val, y_prob)
+    pr_auc = average_precision_score(y_val, y_prob)
     roc_auc = roc_auc_score(y_val, y_prob)
-    prec    = precision_score(y_val, y_pred, zero_division=0)
-    rec     = recall_score(y_val, y_pred, zero_division=0)
-    f1      = f1_score(y_val, y_pred, zero_division=0)
+    prec = precision_score(y_val, y_pred, zero_division=0)
+    rec = recall_score(y_val, y_pred, zero_division=0)
+    f1 = f1_score(y_val, y_pred, zero_division=0)
 
     return {
-        "val_pr_auc":  round(pr_auc,  6),
+        "val_pr_auc": round(pr_auc, 6),
         "val_roc_auc": round(roc_auc, 6),
         "val_precision": round(prec, 6),
-        "val_recall":    round(rec,  6),
-        "val_f1":        round(f1,   6),
+        "val_recall": round(rec, 6),
+        "val_f1": round(f1, 6),
     }
 
 
@@ -213,7 +217,7 @@ def _plot_confusion_matrix(
     """Plot and save a confusion matrix PNG. Returns the file path."""
     y_prob = model.predict_proba(X_val)[:, 1]
     y_pred = (y_prob >= threshold).astype(int)
-    cm     = confusion_matrix(y_val, y_pred)
+    cm = confusion_matrix(y_val, y_pred)
 
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
@@ -244,7 +248,7 @@ def _plot_feature_importance(
     model_name: str,
     output_dir: str,
     top_n: int = 20,
-) -> Optional[str]:
+) -> str | None:
     """Plot and save a feature importance bar chart PNG. Returns path or None."""
     importances = None
     if hasattr(model, "feature_importances_"):
@@ -253,8 +257,8 @@ def _plot_feature_importance(
         return None
 
     indices = np.argsort(importances)[-top_n:][::-1]
-    top_names   = [feature_names[i] for i in indices]
-    top_values  = importances[indices]
+    top_names = [feature_names[i] for i in indices]
+    top_values = importances[indices]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.barh(range(len(top_names)), top_values[::-1], color="steelblue")
@@ -273,12 +277,13 @@ def _plot_feature_importance(
 #  Individual trainers
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def train_random_forest(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-    feature_names: Optional[list[str]] = None,
+    feature_names: list[str] | None = None,
     cfg: dict | None = None,
     model_dir: str = "models",
     mlflow_enabled: bool = True,
@@ -301,12 +306,12 @@ def train_random_forest(
     """
     cfg = cfg or {}
     params = {
-        "n_estimators":    int(cfg.get("n_estimators", 300)),
-        "max_depth":       cfg.get("max_depth", None),
+        "n_estimators": int(cfg.get("n_estimators", 300)),
+        "max_depth": cfg.get("max_depth", None),
         "min_samples_leaf": int(cfg.get("min_samples_leaf", 2)),
-        "class_weight":    cfg.get("class_weight", "balanced"),
-        "n_jobs":          int(cfg.get("n_jobs", -1)),
-        "random_state":    int(cfg.get("random_state", 42)),
+        "class_weight": cfg.get("class_weight", "balanced"),
+        "n_jobs": int(cfg.get("n_jobs", -1)),
+        "random_state": int(cfg.get("random_state", 42)),
     }
     feature_names = feature_names or [f"feature_{i}" for i in range(X_train.shape[1])]
 
@@ -315,30 +320,35 @@ def train_random_forest(
         run_name="random_forest",
         enabled=mlflow_enabled,
     ) as run:
-        run.log_tags({
-            "model_type":     "RandomForestClassifier",
-            "framework":      "sklearn",
-            "training_rows":  len(X_train),
-            "validation_rows": len(X_val),
-            "n_features":     X_train.shape[1],
-            "python_version": sys.version.split()[0],
-        })
+        run.log_tags(
+            {
+                "model_type": "RandomForestClassifier",
+                "framework": "sklearn",
+                "training_rows": len(X_train),
+                "validation_rows": len(X_val),
+                "n_features": X_train.shape[1],
+                "python_version": sys.version.split()[0],
+            }
+        )
         run.log_params(params)
 
         logger.info("Training RandomForest — %d trees ...", params["n_estimators"])
-        t0  = time.perf_counter()
+        t0 = time.perf_counter()
         clf = RandomForestClassifier(**params)
         clf.fit(X_train, y_train)
         elapsed = time.perf_counter() - t0
 
         metrics = _evaluate(clf, X_val, y_val)
         metrics["train_time_seconds"] = round(elapsed, 2)
-        metrics["train_size"]  = len(X_train)
+        metrics["train_size"] = len(X_train)
         run.log_metrics(metrics)
 
         logger.info(
             "RandomForest | PR-AUC=%.4f  ROC-AUC=%.4f  F1=%.4f  time=%.1fs",
-            metrics["val_pr_auc"], metrics["val_roc_auc"], metrics["val_f1"], elapsed,
+            metrics["val_pr_auc"],
+            metrics["val_roc_auc"],
+            metrics["val_f1"],
+            elapsed,
         )
 
         # Save + log artifacts
@@ -368,12 +378,12 @@ def train_xgboost(
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-    feature_names: Optional[list[str]] = None,
+    feature_names: list[str] | None = None,
     cfg: dict | None = None,
     model_dir: str = "models",
     mlflow_enabled: bool = True,
     experiment_name: str = "fraud-detection",
-) -> "XGBClassifier":
+) -> XGBClassifier:
     """
     Train an XGBoost classifier with full MLflow experiment tracking.
 
@@ -404,17 +414,17 @@ def train_xgboost(
     scale_pos = round(neg / max(pos, 1), 4)
 
     params: dict[str, Any] = {
-        "n_estimators":    int(cfg.get("n_estimators", 400)),
-        "learning_rate":   float(cfg.get("learning_rate", 0.05)),
-        "max_depth":       int(cfg.get("max_depth", 6)),
-        "subsample":       float(cfg.get("subsample", 0.8)),
+        "n_estimators": int(cfg.get("n_estimators", 400)),
+        "learning_rate": float(cfg.get("learning_rate", 0.05)),
+        "max_depth": int(cfg.get("max_depth", 6)),
+        "subsample": float(cfg.get("subsample", 0.8)),
         "colsample_bytree": float(cfg.get("colsample_bytree", 0.8)),
         "min_child_weight": int(cfg.get("min_child_weight", 3)),
         "scale_pos_weight": scale_pos,
-        "eval_metric":     cfg.get("eval_metric", "aucpr"),
-        "n_jobs":          int(cfg.get("n_jobs", -1)),
-        "verbosity":       int(cfg.get("verbosity", 0)),
-        "random_state":    int(cfg.get("random_state", 42)),
+        "eval_metric": cfg.get("eval_metric", "aucpr"),
+        "n_jobs": int(cfg.get("n_jobs", -1)),
+        "verbosity": int(cfg.get("verbosity", 0)),
+        "random_state": int(cfg.get("random_state", 42)),
     }
 
     with _MlflowRun(
@@ -422,35 +432,42 @@ def train_xgboost(
         run_name="xgboost",
         enabled=mlflow_enabled,
     ) as run:
-        run.log_tags({
-            "model_type":      "XGBClassifier",
-            "framework":       "xgboost",
-            "training_rows":   len(X_train),
-            "validation_rows": len(X_val),
-            "n_features":      X_train.shape[1],
-            "imbalance_ratio": f"{scale_pos:.1f}",
-            "python_version":  sys.version.split()[0],
-        })
+        run.log_tags(
+            {
+                "model_type": "XGBClassifier",
+                "framework": "xgboost",
+                "training_rows": len(X_train),
+                "validation_rows": len(X_val),
+                "n_features": X_train.shape[1],
+                "imbalance_ratio": f"{scale_pos:.1f}",
+                "python_version": sys.version.split()[0],
+            }
+        )
         run.log_params(params)
 
         logger.info(
             "Training XGBoost — %d rounds  lr=%.3f  scale_pos_weight=%.1f ...",
-            params["n_estimators"], params["learning_rate"], params["scale_pos_weight"],
+            params["n_estimators"],
+            params["learning_rate"],
+            params["scale_pos_weight"],
         )
-        t0  = time.perf_counter()
+        t0 = time.perf_counter()
         clf = XGBClassifier(**params)
         clf.fit(X_train, y_train)
         elapsed = time.perf_counter() - t0
 
         metrics = _evaluate(clf, X_val, y_val)
         metrics["train_time_seconds"] = round(elapsed, 2)
-        metrics["train_size"]         = len(X_train)
-        metrics["scale_pos_weight"]   = scale_pos
+        metrics["train_size"] = len(X_train)
+        metrics["scale_pos_weight"] = scale_pos
         run.log_metrics(metrics)
 
         logger.info(
             "XGBoost | PR-AUC=%.4f  ROC-AUC=%.4f  F1=%.4f  time=%.1fs",
-            metrics["val_pr_auc"], metrics["val_roc_auc"], metrics["val_f1"], elapsed,
+            metrics["val_pr_auc"],
+            metrics["val_roc_auc"],
+            metrics["val_f1"],
+            elapsed,
         )
 
         # Artifacts
@@ -478,8 +495,8 @@ def train_xgboost(
 def train_decision_tree_baseline(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    X_val: Optional[np.ndarray] = None,
-    y_val: Optional[np.ndarray] = None,
+    X_val: np.ndarray | None = None,
+    y_val: np.ndarray | None = None,
     cfg: dict | None = None,
     model_dir: str = "models",
     mlflow_enabled: bool = True,
@@ -493,7 +510,7 @@ def train_decision_tree_baseline(
     """
     cfg = cfg or {}
     params = {
-        "max_depth":    int(cfg.get("max_depth", 8)),
+        "max_depth": int(cfg.get("max_depth", 8)),
         "class_weight": "balanced",
         "random_state": int(cfg.get("random_state", 42)),
     }
@@ -507,7 +524,7 @@ def train_decision_tree_baseline(
         run.log_params(params)
 
         logger.info("Training Decision Tree baseline — max_depth=%d", params["max_depth"])
-        t0  = time.perf_counter()
+        t0 = time.perf_counter()
         clf = DecisionTreeClassifier(**params)
         clf.fit(X_train, y_train)
         elapsed = time.perf_counter() - t0
@@ -517,7 +534,9 @@ def train_decision_tree_baseline(
             metrics.update(_evaluate(clf, X_val, y_val))
             logger.info(
                 "DecisionTree | PR-AUC=%.4f  F1=%.4f  time=%.1fs",
-                metrics.get("val_pr_auc", 0.0), metrics.get("val_f1", 0.0), elapsed,
+                metrics.get("val_pr_auc", 0.0),
+                metrics.get("val_f1", 0.0),
+                elapsed,
             )
         run.log_metrics(metrics)
         _save_model(clf, "decision_tree_model", model_dir, params, metrics)
@@ -529,12 +548,13 @@ def train_decision_tree_baseline(
 #  Train-all orchestrator
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def train_all_models(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-    feature_names: Optional[list[str]] = None,
+    feature_names: list[str] | None = None,
     cfg: dict | None = None,
     model_dir: str = "models",
     mlflow_enabled: bool = True,
@@ -574,7 +594,10 @@ def train_all_models(
     models: dict[str, Any] = {}
 
     rf = train_random_forest(
-        X_train, y_train, X_val, y_val,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
         feature_names=feature_names,
         cfg=cfg.get("random_forest", {}),
         model_dir=model_dir,
@@ -585,7 +608,10 @@ def train_all_models(
 
     if XGB_OK:
         xgb = train_xgboost(
-            X_train, y_train, X_val, y_val,
+            X_train,
+            y_train,
+            X_val,
+            y_val,
             feature_names=feature_names,
             cfg=cfg.get("xgboost", {}),
             model_dir=model_dir,
@@ -595,7 +621,10 @@ def train_all_models(
         models["XGBoost"] = xgb
 
     dt = train_decision_tree_baseline(
-        X_train, y_train, X_val, y_val,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
         cfg=cfg.get("decision_tree", {}),
         model_dir=model_dir,
         mlflow_enabled=enabled,
@@ -611,6 +640,7 @@ def train_all_models(
 #  Persistence helpers (shared by all trainers)
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _save_model(
     model: Any,
     name: str,
@@ -619,14 +649,14 @@ def _save_model(
     metrics: dict,
 ) -> None:
     Path(model_dir).mkdir(parents=True, exist_ok=True)
-    pkl_path  = Path(model_dir) / f"{name}.pkl"
+    pkl_path = Path(model_dir) / f"{name}.pkl"
     meta_path = Path(model_dir) / f"{name}_metadata.json"
 
     joblib.dump(model, pkl_path)
 
     meta = {
-        "name":   name,
-        "class":  type(model).__name__,
+        "name": name,
+        "class": type(model).__name__,
         "params": {k: str(v) for k, v in params.items()},
         **{k: v for k, v in metrics.items() if v is not None},
     }
@@ -640,9 +670,7 @@ def load_model(name: str, model_dir: str = "models") -> Any:
     """Load a previously saved model by name (stem of pkl file)."""
     path = Path(model_dir) / f"{name}.pkl"
     if not path.exists():
-        raise FileNotFoundError(
-            f"Model not found at {path}.  Run main.py to train first."
-        )
+        raise FileNotFoundError(f"Model not found at {path}.  Run main.py to train first.")
     model = joblib.load(path)
     logger.info("Loaded model ← %s", path)
     return model

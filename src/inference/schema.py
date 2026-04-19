@@ -59,12 +59,14 @@ class TransactionRequest(BaseModel):
     V28: float
 
     Amount: float = Field(
-        ..., ge=0.0,
+        ...,
+        ge=0.0,
         description="Transaction amount in USD. Must be ≥ 0.",
         examples=[149.62],
     )
     Time: float = Field(
-        ..., ge=0.0,
+        ...,
+        ge=0.0,
         description="Seconds elapsed since the first transaction in the dataset.",
         examples=[406.0],
     )
@@ -79,13 +81,34 @@ class TransactionRequest(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "V1": -1.3598, "V2": -0.0728, "V3":  2.5364, "V4":  1.3782,
-                "V5": -0.3383, "V6":  0.4624, "V7":  0.2396, "V8":  0.0987,
-                "V9":  0.3638, "V10":-0.0902, "V11":-0.5516, "V12":-0.6178,
-                "V13":-0.9914, "V14":-0.3114, "V15":  1.4682, "V16":-0.4704,
-                "V17": 0.2079, "V18": 0.0258, "V19":  0.4039, "V20":  0.2514,
-                "V21":-0.0183, "V22": 0.2778, "V23":-0.1105,  "V24":  0.0669,
-                "V25": 0.1285, "V26":-0.1891, "V27":  0.1336, "V28":-0.0211,
+                "V1": -1.3598,
+                "V2": -0.0728,
+                "V3": 2.5364,
+                "V4": 1.3782,
+                "V5": -0.3383,
+                "V6": 0.4624,
+                "V7": 0.2396,
+                "V8": 0.0987,
+                "V9": 0.3638,
+                "V10": -0.0902,
+                "V11": -0.5516,
+                "V12": -0.6178,
+                "V13": -0.9914,
+                "V14": -0.3114,
+                "V15": 1.4682,
+                "V16": -0.4704,
+                "V17": 0.2079,
+                "V18": 0.0258,
+                "V19": 0.4039,
+                "V20": 0.2514,
+                "V21": -0.0183,
+                "V22": 0.2778,
+                "V23": -0.1105,
+                "V24": 0.0669,
+                "V25": 0.1285,
+                "V26": -0.1891,
+                "V27": 0.1336,
+                "V28": -0.0211,
                 "Amount": 149.62,
                 "Time": 406.0,
             }
@@ -95,6 +118,7 @@ class TransactionRequest(BaseModel):
 
 class ShapContribution(BaseModel):
     """A single feature's contribution to a fraud prediction."""
+
     feature: str = Field(..., description="Feature name")
     shap_value: float = Field(..., description="SHAP contribution to fraud probability")
     feature_value: float = Field(..., description="Raw feature value submitted")
@@ -108,6 +132,7 @@ class PredictionExplanation(BaseModel):
     not just *that* it did. Required for GDPR Article 22 compliance in
     automated decision systems.
     """
+
     base_value: float = Field(
         ...,
         description="Model's expected output on the training set (prior fraud probability)",
@@ -129,11 +154,12 @@ class PredictionResponse(BaseModel):
     The ``explanation`` field is populated when the model has been loaded with
     SHAP support and ``explain=true`` is passed as a query parameter.
     """
-    prediction:     str   = Field(..., description="'fraud' or 'legitimate'")
-    probability:    float = Field(..., ge=0.0, le=1.0, description="Fraud probability [0, 1]")
-    risk_tier:      str   = Field(..., description="LOW | MEDIUM | HIGH | CRITICAL")
+
+    prediction: str = Field(..., description="'fraud' or 'legitimate'")
+    probability: float = Field(..., ge=0.0, le=1.0, description="Fraud probability [0, 1]")
+    risk_tier: str = Field(..., description="LOW | MEDIUM | HIGH | CRITICAL")
     threshold_used: float = Field(..., description="Decision threshold applied")
-    message:        str   = Field(..., description="Human-readable risk assessment")
+    message: str = Field(..., description="Human-readable risk assessment")
     explanation: PredictionExplanation | None = Field(
         None,
         description="SHAP feature contributions (present when ?explain=true)",
@@ -155,11 +181,12 @@ class PredictionResponse(BaseModel):
 
 class BatchPredictionResponse(BaseModel):
     """Summary response for POST /predict/batch."""
-    total_transactions: int   = Field(..., description="Number of rows scored")
-    fraud_count:        int   = Field(..., description="Rows classified as fraud")
-    legitimate_count:   int   = Field(..., description="Rows classified as legitimate")
-    fraud_rate:         float = Field(..., description="fraud_count / total_transactions")
-    predictions:        list[dict] = Field(
+
+    total_transactions: int = Field(..., description="Number of rows scored")
+    fraud_count: int = Field(..., description="Rows classified as fraud")
+    legitimate_count: int = Field(..., description="Rows classified as legitimate")
+    fraud_rate: float = Field(..., description="fraud_count / total_transactions")
+    predictions: list[dict] = Field(
         ...,
         description="Per-row results: probability, prediction, risk_tier",
     )

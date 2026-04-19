@@ -18,6 +18,7 @@ from src.inference.predictor import FraudPredictor
 # without pydantic installed (e.g. lightweight batch scoring scripts).
 try:
     from src.inference.schema import PredictionResponse, TransactionRequest
+
     __all__ = ["FraudPredictor", "TransactionRequest", "PredictionResponse"]
 except ImportError:
     __all__ = ["FraudPredictor"]

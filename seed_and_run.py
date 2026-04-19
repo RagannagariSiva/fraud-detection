@@ -1,9 +1,13 @@
-import json, time, random, pandas as pd
+import json
+import random
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CSV   = Path("data/raw/creditcard.csv")
-TXN   = Path("logs/transactions.jsonl")
+import pandas as pd
+
+CSV = Path("data/raw/creditcard.csv")
+TXN = Path("logs/transactions.jsonl")
 ALERT = Path("logs/fraud_alerts.jsonl")
 
 print("Loading creditcard.csv...")
@@ -24,10 +28,10 @@ seed_start = now - timedelta(hours=2)
 
 # Take first 7200 rows from CSV as historical (real transactions)
 seed_df = df.head(7200).copy()
-txn_lines = []    # FIX 1: was broken/truncated — correctly initialised as empty list
+txn_lines = []  # FIX 1: was broken/truncated — correctly initialised as empty list
 alert_lines = []
 
-for i, (_, row) in enumerate(seed_df.iterrows()):   # FIX 2: restored correct for-loop
+for i, (_, row) in enumerate(seed_df.iterrows()):  # FIX 2: restored correct for-loop
     ts = (seed_start + timedelta(seconds=i)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     is_fraud = int(row["Class"]) == 1
 
@@ -49,15 +53,19 @@ for i, (_, row) in enumerate(seed_df.iterrows()):   # FIX 2: restored correct fo
     else:
         prob = round(random.uniform(0.0001, 0.05), 6)
         tier = "LOW"
-        txn_lines.append(json.dumps({
-            "timestamp": ts,
-            "transaction_id": "TXN-" + str(random.randint(100000000000, 999999999999)),
-            "prediction": "legitimate",
-            "probability": prob,
-            "risk_tier": tier,
-            "amount": round(float(row["Amount"]), 2),
-            "is_fraud": False,
-        }))
+        txn_lines.append(
+            json.dumps(
+                {
+                    "timestamp": ts,
+                    "transaction_id": "TXN-" + str(random.randint(100000000000, 999999999999)),
+                    "prediction": "legitimate",
+                    "probability": prob,
+                    "risk_tier": tier,
+                    "amount": round(float(row["Amount"]), 2),
+                    "is_fraud": False,
+                }
+            )
+        )
 
 with open(TXN, "w") as f:
     f.write("\n".join(txn_lines) + "\n")
@@ -66,7 +74,7 @@ with open(ALERT, "w") as f:
 
 fraud_count = len(alert_lines)
 total = len(txn_lines)
-print(f"Seeded: {total:,} transactions | Fraud: {fraud_count} ({fraud_count/total*100:.3f}%)")
+print(f"Seeded: {total:,} transactions | Fraud: {fraud_count} ({fraud_count / total * 100:.3f}%)")
 print("Now running live feed every 5 seconds...")
 
 # ── LIVE: add real rows every 5 seconds ──────────────────────────────────
@@ -83,17 +91,21 @@ while True:
     n_fraud = 1 if random.random() < 0.0172 else 0
 
     lines = []
-    for _, row in legit_df.sample(n_legit).iterrows():   # FIX 3: restored correct for-loop
+    for _, row in legit_df.sample(n_legit).iterrows():  # FIX 3: restored correct for-loop
         prob = round(random.uniform(0.0001, 0.05), 6)
-        lines.append(json.dumps({
-            "timestamp": now_str,
-            "transaction_id": "TXN-" + str(random.randint(100000000000, 999999999999)),
-            "prediction": "legitimate",
-            "probability": prob,
-            "risk_tier": "LOW",
-            "amount": round(float(row["Amount"]), 2),
-            "is_fraud": False,
-        }))
+        lines.append(
+            json.dumps(
+                {
+                    "timestamp": now_str,
+                    "transaction_id": "TXN-" + str(random.randint(100000000000, 999999999999)),
+                    "prediction": "legitimate",
+                    "probability": prob,
+                    "risk_tier": "LOW",
+                    "amount": round(float(row["Amount"]), 2),
+                    "is_fraud": False,
+                }
+            )
+        )
 
     if n_fraud:
         row = fraud_df.sample(1).iloc[0]
@@ -119,5 +131,7 @@ while True:
 
     sent += len(lines)
     rate = fraud_sent / sent * 100
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] batch={batch_num} | +{len(lines)} txns | total={sent:,} | fraud={fraud_sent} ({rate:.3f}%)")
+    print(
+        f"[{datetime.now().strftime('%H:%M:%S')}] batch={batch_num} | +{len(lines)} txns | total={sent:,} | fraud={fraud_sent} ({rate:.3f}%)"
+    )
     time.sleep(5)

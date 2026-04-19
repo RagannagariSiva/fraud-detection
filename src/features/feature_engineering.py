@@ -100,7 +100,7 @@ def _add_time_features(df: pd.DataFrame) -> pd.DataFrame:
         # log1p on absolute value works even after RobustScaler shifts Amount near 0
         df["log_amount"] = np.log1p(np.abs(df["Amount"]))
         med = df["Amount"].median()
-        mad = (df["Amount"] - med).abs().median()   # pandas 2.x removed .mad()
+        mad = (df["Amount"] - med).abs().median()  # pandas 2.x removed .mad()
         if mad > 0:
             df["amount_z"] = (df["Amount"] - med) / mad
         else:
@@ -143,14 +143,10 @@ def _add_velocity_features(df: pd.DataFrame) -> pd.DataFrame:
     s_amount = pd.Series(df["Amount"].values, index=ts_index, name="Amount")
 
     # 1-hour rolling count
-    df["txn_count_1h"] = (
-        s_amount.rolling("3600s", min_periods=1).count().values.astype(int)
-    )
+    df["txn_count_1h"] = s_amount.rolling("3600s", min_periods=1).count().values.astype(int)
 
     # 24-hour rolling sum of amount
-    df["amount_sum_24h"] = (
-        s_amount.rolling("86400s", min_periods=1).sum().values
-    )
+    df["amount_sum_24h"] = s_amount.rolling("86400s", min_periods=1).sum().values
 
     # Time since previous transaction (0 for the very first row)
     df["time_since_last"] = df["Time"].diff().fillna(0).clip(lower=0)

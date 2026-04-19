@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 
@@ -31,11 +30,11 @@ def tmp_project(tmp_path_factory) -> dict:
     for d in dirs:
         (base / d).mkdir(parents=True)
     return {
-        "base":       base,
-        "models":     base / "models",
-        "reports":    base / "reports" / "figures",
-        "data":       base / "data" / "raw",
-        "logs":       base / "logs",
+        "base": base,
+        "models": base / "models",
+        "reports": base / "reports" / "figures",
+        "data": base / "data" / "raw",
+        "logs": base / "logs",
     }
 
 
@@ -43,62 +42,62 @@ def _minimal_config(paths: dict) -> dict:
     """Return a config dict that runs fast enough for tests."""
     return {
         "data": {
-            "raw_path":     str(paths["data"] / "creditcard.csv"),
+            "raw_path": str(paths["data"] / "creditcard.csv"),
             "processed_path": str(paths["base"] / "data" / "processed" / "data.csv"),
-            "test_size":    0.20,
-            "val_size":     0.10,
+            "test_size": 0.20,
+            "val_size": 0.10,
             "random_state": 42,
-            "fraud_ratio":  0.05,
+            "fraud_ratio": 0.05,
         },
         "preprocessing": {
-            "scaler":            "robust",
-            "scale_cols":        ["Amount", "Time"],
-            "scaler_path":       str(paths["models"] / "scaler.pkl"),
+            "scaler": "robust",
+            "scale_cols": ["Amount", "Time"],
+            "scaler_path": str(paths["models"] / "scaler.pkl"),
             "feature_names_path": str(paths["models"] / "feature_names.pkl"),
         },
         "features": {
-            "add_time_features":     True,
+            "add_time_features": True,
             "add_velocity_features": False,
-            "add_interactions":      True,
+            "add_interactions": True,
         },
         "resampling": {
-            "strategy":        "smote",
+            "strategy": "smote",
             "smote_k_neighbors": 3,
         },
         "models": {
             "random_forest": {
                 "n_estimators": 10,
-                "max_depth":    4,
+                "max_depth": 4,
                 "min_samples_leaf": 2,
                 "class_weight": "balanced",
-                "n_jobs":       1,
+                "n_jobs": 1,
                 "random_state": 42,
             },
             "xgboost": {
-                "n_estimators":     20,
-                "learning_rate":    0.1,
-                "max_depth":        3,
-                "subsample":        0.8,
+                "n_estimators": 20,
+                "learning_rate": 0.1,
+                "max_depth": 3,
+                "subsample": 0.8,
                 "colsample_bytree": 0.8,
                 "min_child_weight": 1,
-                "eval_metric":      "aucpr",
-                "n_jobs":           1,
-                "verbosity":        0,
-                "random_state":     42,
+                "eval_metric": "aucpr",
+                "n_jobs": 1,
+                "verbosity": 0,
+                "random_state": 42,
             },
         },
         "tuning": {"enabled": False},
         "training": {
             "primary_model": "xgboost",
-            "model_dir":     str(paths["models"]),
-            "report_dir":    str(paths["reports"]),
-            "results_path":  str(paths["base"] / "reports" / "model_results.csv"),
-            "log_path":      str(paths["logs"] / "training.log"),
+            "model_dir": str(paths["models"]),
+            "report_dir": str(paths["reports"]),
+            "results_path": str(paths["base"] / "reports" / "model_results.csv"),
+            "log_path": str(paths["logs"] / "training.log"),
         },
         "inference": {
             "model_name": "xgboost_model",
-            "model_dir":  str(paths["models"]),
-            "threshold":  0.40,
+            "model_dir": str(paths["models"]),
+            "threshold": 0.40,
         },
         "mlflow": {"enabled": False},
         "drift_detection": {
@@ -180,14 +179,16 @@ class TestPredictorAfterPipeline:
     def predictor(self, tmp_project):
         # Run pipeline first
         from src.training.pipeline import run_pipeline
+
         cfg = _minimal_config(tmp_project)
         run_pipeline(cfg)
 
         from src.inference.predictor import FraudPredictor
+
         return FraudPredictor(
             model_name="xgboost_model",
-            model_dir =str(tmp_project["models"]),
-            threshold =0.40,
+            model_dir=str(tmp_project["models"]),
+            threshold=0.40,
         )
 
     def test_predictor_loads_without_error(self, predictor):
@@ -198,9 +199,9 @@ class TestPredictorAfterPipeline:
 
     def test_predict_returns_valid_structure(self, predictor, valid_transaction_dict):
         result = predictor.predict(valid_transaction_dict)
-        assert "prediction"     in result
-        assert "probability"    in result
-        assert "risk_tier"      in result
+        assert "prediction" in result
+        assert "probability" in result
+        assert "risk_tier" in result
         assert "threshold_used" in result
         assert result["prediction"] in ("fraud", "legitimate")
         assert 0.0 <= result["probability"] <= 1.0
@@ -208,11 +209,12 @@ class TestPredictorAfterPipeline:
 
     def test_predict_batch_returns_dataframe(self, predictor, valid_transaction_dict):
         import pandas as pd
+
         df = pd.DataFrame([valid_transaction_dict] * 5)
         scored = predictor.predict_batch(df)
         assert "probability" in scored.columns
-        assert "prediction"  in scored.columns
-        assert "risk_tier"   in scored.columns
+        assert "prediction" in scored.columns
+        assert "risk_tier" in scored.columns
         assert len(scored) == 5
 
     def test_high_v14_negative_scores_higher(self, predictor, valid_transaction_dict):
@@ -220,9 +222,9 @@ class TestPredictorAfterPipeline:
         V14 is the strongest fraud signal: large negative values should push
         the fraud probability higher than V14 near zero.
         """
-        base     = dict(valid_transaction_dict)
+        base = dict(valid_transaction_dict)
         fraud_tx = {**base, "V14": -8.0, "V12": -6.0}  # extreme fraud signals
-        legit_tx = {**base, "V14":  0.5, "V12":  0.3}  # near-neutral
+        legit_tx = {**base, "V14": 0.5, "V12": 0.3}  # near-neutral
 
         fraud_prob = predictor.predict(fraud_tx)["probability"]
         legit_prob = predictor.predict(legit_tx)["probability"]
@@ -235,9 +237,9 @@ class TestFeatureEngineeringConsistency:
     """Verify feature engineering applies identically at training and inference time."""
 
     def test_log_amount_positive(self):
-        import numpy as np
-        from src.features.feature_engineering import _add_time_features
         import pandas as pd
+
+        from src.features.feature_engineering import _add_time_features
 
         df = pd.DataFrame({"Amount": [0.0, 1.5, 100.0, 25519.0], "Time": [0.0] * 4})
         result = _add_time_features(df)
@@ -245,25 +247,29 @@ class TestFeatureEngineeringConsistency:
 
     def test_is_night_correct_boundary(self):
         import pandas as pd
+
         from src.features.feature_engineering import _add_time_features
 
         # 2am (hour=2) → night; 12pm (hour=12) → day
-        df = pd.DataFrame({
-            "Amount": [50.0, 50.0],
-            "Time":   [2 * 3600, 12 * 3600],   # 02:00 and 12:00
-        })
+        df = pd.DataFrame(
+            {
+                "Amount": [50.0, 50.0],
+                "Time": [2 * 3600, 12 * 3600],  # 02:00 and 12:00
+            }
+        )
         result = _add_time_features(df)
         assert result["is_night"].iloc[0] == 1, "02:00 should be classified as night"
         assert result["is_night"].iloc[1] == 0, "12:00 should not be classified as night"
 
     def test_feature_count_matches_after_engineering(self):
         import pandas as pd
+
         from src.features.feature_engineering import build_features
 
         df = pd.DataFrame({f"V{i}": [0.0] for i in range(1, 29)})
         df["Amount"] = [100.0]
-        df["Time"]   = [3600.0]
+        df["Time"] = [3600.0]
 
-        cfg     = {"add_time_features": True, "add_interactions": True}
-        result  = build_features(df, cfg)
+        cfg = {"add_time_features": True, "add_interactions": True}
+        result = build_features(df, cfg)
         assert result.shape[1] > df.shape[1], "Feature engineering should add columns"

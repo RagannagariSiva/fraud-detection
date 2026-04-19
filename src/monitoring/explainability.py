@@ -39,7 +39,6 @@ except ImportError:
     logger.warning("shap not installed.  Run: pip install shap")
 
 try:
-    import matplotlib
     import matplotlib.pyplot as plt
 
     MPL_OK = True
@@ -51,7 +50,7 @@ def compute_shap_values(
     model: Any,
     X: pd.DataFrame | np.ndarray,
     model_type: str = "tree",
-) -> tuple["shap.Explainer", np.ndarray]:
+) -> tuple[shap.Explainer, np.ndarray]:
     """
     Compute SHAP values for a fitted tree-based model.
 
@@ -83,7 +82,8 @@ def compute_shap_values(
     logger.info(
         "SHAP values computed | shape=%s | base_value=%.4f",
         shap_vals.shape,
-        explainer.expected_value[1] if isinstance(explainer.expected_value, (list, np.ndarray))
+        explainer.expected_value[1]
+        if isinstance(explainer.expected_value, (list, np.ndarray))
         else explainer.expected_value,
     )
     return explainer, shap_vals
@@ -148,7 +148,8 @@ def plot_shap_bar(
     ax.barh(
         range(max_display),
         mean_abs[idx][::-1],
-        color="#2980b9", edgecolor="white",
+        color="#2980b9",
+        edgecolor="white",
     )
     ax.set_yticks(range(max_display))
     ax.set_yticklabels([X.columns[i] for i in idx][::-1], fontsize=9)
@@ -223,7 +224,9 @@ def explain_single_prediction(
     legit_drivers = [(f, v) for f, v in top_features if v < 0]
     lines = ["Top fraud signals: " + ", ".join(f"{f}(+{v:.3f})" for f, v in fraud_drivers[:3])]
     if legit_drivers:
-        lines.append("Top legitimate signals: " + ", ".join(f"{f}({v:.3f})" for f, v in legit_drivers[:3]))
+        lines.append(
+            "Top legitimate signals: " + ", ".join(f"{f}({v:.3f})" for f, v in legit_drivers[:3])
+        )
 
     return {
         "base_value": round(base_val, 6),

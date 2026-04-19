@@ -25,7 +25,6 @@ Or the dashboard:
 from __future__ import annotations
 
 import argparse
-import sys
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +47,7 @@ def main() -> None:
     setup_logging(cfg["training"]["log_path"])
 
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("Starting Credit Card Fraud Detection Pipeline")
     logger.info("Config: %s", args.config)

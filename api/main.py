@@ -40,12 +40,12 @@ from typing import Any
 import pandas as pd
 import yaml
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+from monitoring.fraud_alerts import FraudAlertSystem
 from src.inference.predictor import FraudPredictor
 from src.inference.schema import (
     BatchPredictionResponse,
@@ -55,17 +55,16 @@ from src.inference.schema import (
     TransactionRequest,
 )
 from src.monitoring.model_monitor import ModelMonitor
-from monitoring.fraud_alerts import FraudAlertSystem
 
 logger = logging.getLogger(__name__)
 
 # ── Module-level singletons (loaded once at startup) ──────────────────────────
 
 _predictor: FraudPredictor | None = None
-_config:    dict[str, Any]        = {}
-_monitor:   ModelMonitor          = ModelMonitor()
-_alerter:   FraudAlertSystem      = FraudAlertSystem()
-_start_time: float                = time.time()
+_config: dict[str, Any] = {}
+_monitor: ModelMonitor = ModelMonitor()
+_alerter: FraudAlertSystem = FraudAlertSystem()
+_start_time: float = time.time()
 
 # SHAP explainer — loaded lazily on first ?explain=true request so startup
 # time is unaffected for callers that don't need explanations.
@@ -87,6 +86,7 @@ def _get_explainer(model: Any) -> Any | None:
         return _explainer
     try:
         import shap
+
         _explainer = shap.TreeExplainer(model)
         logger.info("SHAP TreeExplainer loaded successfully")
     except Exception as exc:
@@ -98,18 +98,19 @@ def _get_explainer(model: Any) -> Any | None:
 
 # ── Application lifespan ──────────────────────────────────────────────────────
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model artifacts at startup; log clean shutdown."""
     global _predictor, _config
-    _config    = _load_config()
-    infer_cfg  = _config.get("inference", {})
+    _config = _load_config()
+    infer_cfg = _config.get("inference", {})
 
     try:
         _predictor = FraudPredictor(
             model_name=infer_cfg.get("model_name", "xgboost_model"),
-            model_dir =infer_cfg.get("model_dir",  "models"),
-            threshold =float(infer_cfg.get("threshold", 0.40)),
+            model_dir=infer_cfg.get("model_dir", "models"),
+            threshold=float(infer_cfg.get("threshold", 0.40)),
         )
         logger.info(
             "Model loaded: %s | features=%d | threshold=%.4f",
@@ -151,25 +152,24 @@ app.add_middleware(
 
 # ── Request timing middleware ─────────────────────────────────────────────────
 
+
 @app.middleware("http")
 async def record_latency(request: Request, call_next):
-    t0       = time.perf_counter()
+    t0 = time.perf_counter()
     response = await call_next(request)
-    ms       = (time.perf_counter() - t0) * 1_000
+    ms = (time.perf_counter() - t0) * 1_000
     response.headers["X-Process-Time-Ms"] = f"{ms:.2f}"
     return response
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+
 def _require_model() -> FraudPredictor:
     if _predictor is None:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Model not loaded. "
-                "Run `python main.py` to train it, then restart the API."
-            ),
+            detail=("Model not loaded. Run `python main.py` to train it, then restart the API."),
         )
     return _predictor
 
@@ -187,7 +187,6 @@ def _build_explanation(
         return None
 
     try:
-        import numpy as np
         import pandas as pd
 
         # Build the same array the predictor uses — scaled, correct column order
@@ -222,7 +221,7 @@ def _build_explanation(
         ]
 
         fraud_drivers = [f"{c.feature}({c.shap_value:+.3f})" for c in top if c.shap_value > 0][:3]
-        safe_drivers  = [f"{c.feature}({c.shap_value:+.3f})" for c in top if c.shap_value < 0][:3]
+        safe_drivers = [f"{c.feature}({c.shap_value:+.3f})" for c in top if c.shap_value < 0][:3]
         lines = []
         if fraud_drivers:
             lines.append(f"Fraud drivers: {', '.join(fraud_drivers)}")
@@ -244,6 +243,7 @@ def _build_explanation(
 #  System endpoints
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/health", summary="Liveness and readiness check", tags=["System"])
 async def health() -> dict[str, Any]:
     """
@@ -253,21 +253,21 @@ async def health() -> dict[str, Any]:
     Kubernetes probes and alerting rules can detect degraded performance
     without a separate monitoring call.
     """
-    uptime    = int(time.time() - _start_time)
+    uptime = int(time.time() - _start_time)
     mon_check = _monitor.health_check()
 
     return {
-        "status":         "ok" if _predictor is not None else "degraded",
-        "model_loaded":   _predictor is not None,
-        "model_name":     _predictor.model_name if _predictor else None,
-        "version":        app.version,
+        "status": "ok" if _predictor is not None else "degraded",
+        "model_loaded": _predictor is not None,
+        "model_name": _predictor.model_name if _predictor else None,
+        "version": app.version,
         "uptime_seconds": uptime,
         "monitor": {
-            "healthy":         mon_check["healthy"],
-            "issues":          mon_check["issues"],
+            "healthy": mon_check["healthy"],
+            "issues": mon_check["issues"],
             "fraud_rate_5min": mon_check["fraud_rate_5min"],
             "error_rate_5min": mon_check["error_rate_5min"],
-            "latency_p99_ms":  mon_check["latency_p99_ms"],
+            "latency_p99_ms": mon_check["latency_p99_ms"],
         },
     }
 
@@ -282,11 +282,11 @@ async def info() -> dict[str, Any]:
         with open(meta_path, encoding="utf-8") as f:
             metadata = json.load(f)
     return {
-        "model_name":    predictor.model_name,
+        "model_name": predictor.model_name,
         "feature_count": len(predictor.feature_names),
-        "threshold":     predictor.threshold,
-        "metadata":      metadata,
-        "version":       app.version,
+        "threshold": predictor.threshold,
+        "metadata": metadata,
+        "version": app.version,
         "shap_available": _explainer is not None or not _explainer_loaded,
     }
 
@@ -315,6 +315,7 @@ async def metrics(
 # ══════════════════════════════════════════════════════════════════════════════
 #  Prediction endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @app.post(
     "/predict",
@@ -349,23 +350,24 @@ async def predict(
     the model assigned this probability.
     """
     predictor = _require_model()
-    t0        = time.perf_counter()
+    t0 = time.perf_counter()
 
     try:
         feature_dict = request.model_dump()
         for k, v in feature_dict.items():
             if abs(float(v)) > 1e6:
                 raise ValueError(f"Feature {k} value {v} out of range")
-        result       = predictor.predict(feature_dict)
-        latency_ms   = (time.perf_counter() - t0) * 1_000
+        result = predictor.predict(feature_dict)
+        latency_ms = (time.perf_counter() - t0) * 1_000
 
         _monitor.record_prediction(
             probability=result["probability"],
-            risk_tier  =result["risk_tier"],
-            latency_ms =latency_ms,
+            risk_tier=result["risk_tier"],
+            latency_ms=latency_ms,
         )
 
         import uuid
+
         _alerter.process(
             transaction_id=f"TXN-{uuid.uuid4().hex[:12].upper()}",
             result=result,
@@ -377,21 +379,19 @@ async def predict(
             explanation = _build_explanation(predictor, feature_dict)
 
         return PredictionResponse(
-            prediction    =result["prediction"],
-            probability   =result["probability"],
-            risk_tier     =result["risk_tier"],
+            prediction=result["prediction"],
+            probability=result["probability"],
+            risk_tier=result["risk_tier"],
             threshold_used=result["threshold_used"],
-            message       =result["message"],
-            explanation   =explanation,
+            message=result["message"],
+            explanation=explanation,
         )
 
     except ValueError as exc:
-        _monitor.record_prediction(probability=0.0, risk_tier="LOW",
-                                    latency_ms=0.0, is_error=True)
+        _monitor.record_prediction(probability=0.0, risk_tier="LOW", latency_ms=0.0, is_error=True)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        _monitor.record_prediction(probability=0.0, risk_tier="LOW",
-                                    latency_ms=0.0, is_error=True)
+        _monitor.record_prediction(probability=0.0, risk_tier="LOW", latency_ms=0.0, is_error=True)
         logger.exception("Unhandled error during prediction")
         raise HTTPException(status_code=500, detail="Internal prediction error") from exc
 
@@ -441,23 +441,23 @@ async def predict_batch(
         logger.exception("Batch prediction error")
         raise HTTPException(status_code=500, detail="Internal batch prediction error") from exc
 
-    latency_ms  = (time.perf_counter() - t0) * 1_000
+    latency_ms = (time.perf_counter() - t0) * 1_000
     fraud_count = int((scored["prediction"] == "fraud").sum())
-    total       = len(scored)
+    total = len(scored)
 
     # Record every row in the monitor (amortised latency)
     per_row_ms = latency_ms / max(total, 1)
     for prob, tier in zip(scored["probability"], scored["risk_tier"]):
         _monitor.record_prediction(
             probability=float(prob),
-            risk_tier  =str(tier),
-            latency_ms =per_row_ms,
+            risk_tier=str(tier),
+            latency_ms=per_row_ms,
         )
 
     return BatchPredictionResponse(
         total_transactions=total,
-        fraud_count       =fraud_count,
-        legitimate_count  =total - fraud_count,
-        fraud_rate        =round(fraud_count / total, 6) if total > 0 else 0.0,
-        predictions       =scored[["probability", "prediction", "risk_tier"]].to_dict(orient="records"),
+        fraud_count=fraud_count,
+        legitimate_count=total - fraud_count,
+        fraud_rate=round(fraud_count / total, 6) if total > 0 else 0.0,
+        predictions=scored[["probability", "prediction", "risk_tier"]].to_dict(orient="records"),
     )

@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
 
@@ -36,9 +35,7 @@ def trained_artifacts(tmp_path_factory):
 
     # Build minimal training data
     feature_names = [f"V{i}" for i in range(1, 29)] + ["Amount", "Time"]
-    X = pd.DataFrame(
-        {f"V{i}": rng.randn(n) for i in range(1, 29)}
-    )
+    X = pd.DataFrame({f"V{i}": rng.randn(n) for i in range(1, 29)})
     X["Amount"] = rng.exponential(80, n)
     X["Time"] = np.sort(rng.uniform(0, 172_800, n))
     y = np.zeros(n, dtype=int)
@@ -151,7 +148,6 @@ def test_predict_batch_output_shape(predictor):
 def test_youden_threshold_is_valid(predictor, trained_artifacts):
     """set_threshold_youden() returns a float in (0, 1)."""
     import joblib
-    from sklearn.preprocessing import RobustScaler
 
     model_dir, feature_names = trained_artifacts
 

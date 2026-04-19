@@ -32,17 +32,16 @@ import json
 import logging
 import random
 import sys
+import sys as _sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Optional
+from pathlib import Path as _Path
 
 import requests
-import sys as _sys
-from pathlib import Path as _Path
+
 _sys.path.insert(0, str(_Path(__file__).parent.parent))
-from simulation.persistent_store import increment_stat, set_stat, get_all_stats, insert_transaction
+from simulation.persistent_store import get_all_stats, increment_stat, insert_transaction, set_stat
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
 
@@ -55,13 +54,13 @@ logger = logging.getLogger(__name__)
 
 # ── Colour helpers (ANSI, disabled on non-TTY) ────────────────────────────────
 
-RESET  = "\033[0m"
-RED    = "\033[91m"
+RESET = "\033[0m"
+RED = "\033[91m"
 YELLOW = "\033[93m"
-GREEN  = "\033[92m"
-CYAN   = "\033[96m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
+GREEN = "\033[92m"
+CYAN = "\033[96m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
 
 
 def _c(text: str, *codes: str) -> str:
@@ -83,9 +82,9 @@ _LEGIT_STATS: dict[str, tuple[float, float]] = {
 # Fraudulent transactions tend to have extreme V values and small amounts
 _FRAUD_STATS: dict[str, tuple[float, float]] = {
     **{f"V{i}": (0.0, 3.2) for i in range(1, 29)},
-    "V1":  (-4.8, 2.0),
-    "V3":  (-5.5, 2.5),
-    "V4":  ( 4.1, 2.0),
+    "V1": (-4.8, 2.0),
+    "V3": (-5.5, 2.5),
+    "V4": (4.1, 2.0),
     "V10": (-5.2, 2.5),
     "V12": (-6.0, 2.5),
     "V14": (-9.5, 3.0),
@@ -110,14 +109,14 @@ class SyntheticTransaction:
         rng: random.Random,
         sim_start_time: float,
         force_fraud: bool = False,
-    ) -> "SyntheticTransaction":
+    ) -> SyntheticTransaction:
         """
         Generate a realistic synthetic transaction.
 
         ``force_fraud=True`` draws feature values from the fraud distribution,
         making the model more likely (but not guaranteed) to flag it.
         """
-        txn_id = f"TXN-{int(time.time()*1000) % 10_000_000:07d}-{rng.randint(0, 9999):04d}"
+        txn_id = f"TXN-{int(time.time() * 1000) % 10_000_000:07d}-{rng.randint(0, 9999):04d}"
         ts = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
         elapsed = time.time() - sim_start_time
         stats = _FRAUD_STATS if force_fraud else _LEGIT_STATS
@@ -142,6 +141,7 @@ class SyntheticTransaction:
 
 # ── API client ─────────────────────────────────────────────────────────────────
 
+
 class FraudAPIClient:
     """Thin HTTP client for the fraud detection REST API."""
 
@@ -160,7 +160,7 @@ class FraudAPIClient:
         except Exception:
             return False
 
-    def predict(self, features: dict[str, float]) -> Optional[dict]:
+    def predict(self, features: dict[str, float]) -> dict | None:
         """
         POST /predict and return the parsed response dict, or None on error.
         """
@@ -188,9 +188,9 @@ class FraudAPIClient:
 # ── Console display ────────────────────────────────────────────────────────────
 
 RISK_COLOUR = {
-    "LOW":      GREEN,
-    "MEDIUM":   YELLOW,
-    "HIGH":     YELLOW,
+    "LOW": GREEN,
+    "MEDIUM": YELLOW,
+    "HIGH": YELLOW,
     "CRITICAL": RED,
 }
 
@@ -199,8 +199,8 @@ def _print_result(txn: SyntheticTransaction, result: dict, idx: int) -> None:
     """Print a single transaction result in a coloured, human-readable format."""
     prediction = result.get("prediction", "unknown")
     probability = result.get("probability", 0.0)
-    risk_tier   = result.get("risk_tier", "UNKNOWN")
-    colour      = RISK_COLOUR.get(risk_tier, RESET)
+    risk_tier = result.get("risk_tier", "UNKNOWN")
+    colour = RISK_COLOUR.get(risk_tier, RESET)
 
     injected_tag = _c(" [INJECTED FRAUD]", BOLD, RED) if txn.is_injected_fraud else ""
 
@@ -243,6 +243,7 @@ def _print_summary(stats: dict) -> None:
 
 
 # ── Main simulator loop ───────────────────────────────────────────────────────
+
 
 def run_simulation(
     api_url: str = "http://localhost:8000",
@@ -330,14 +331,12 @@ def run_simulation(
                 _print_result(txn, result, stats["total"])
 
                 # ── Persist to SQLite (survives restarts) ──────────────
-                fraud_prob  = result.get("probability", 0.0)
-                risk_tier   = result.get("risk_tier", "UNKNOWN")
+                fraud_prob = result.get("probability", 0.0)
+                risk_tier = result.get("risk_tier", "UNKNOWN")
                 is_fraud = result.get("prediction") == "fraud"
-                amount      = txn.features.get("Amount", 0.0)
+                amount = txn.features.get("Amount", 0.0)
 
-                insert_transaction(
-                    txn.transaction_id, is_fraud, fraud_prob, amount, risk_tier
-                )
+                insert_transaction(txn.transaction_id, is_fraud, fraud_prob, amount, risk_tier)
                 increment_stat("total_alerts", 1)
                 increment_stat("total_amount", amount)
 
@@ -354,7 +353,7 @@ def run_simulation(
                 all_stats = get_all_stats()
                 total_so_far = int(all_stats.get("total_alerts", 1))
                 prev_avg = all_stats.get("avg_fraud_prob", 0.0)
-                new_avg  = prev_avg + (fraud_prob - prev_avg) / total_so_far
+                new_avg = prev_avg + (fraud_prob - prev_avg) / total_so_far
                 set_stat("avg_fraud_prob", new_avg)
 
             # Print rolling summary
@@ -377,29 +376,36 @@ def run_simulation(
     print(_c("=" * 70, BOLD))
     print(f"  Duration           : {elapsed:.1f}s")
     print(f"  Transactions sent  : {total}")
-    print(f"  Fraud detected     : {stats['fraud_detected']}  ({stats['fraud_detected']/max(total,1)*100:.1f}%)")
+    print(
+        f"  Fraud detected     : {stats['fraud_detected']}  ({stats['fraud_detected'] / max(total, 1) * 100:.1f}%)"
+    )
     print(f"  Injected frauds    : {stats['injected_total']}")
-    print(f"  Injected caught    : {stats['injected_flagged']}  ({stats['injected_flagged']/max(stats['injected_total'],1)*100:.0f}% recall)")
+    print(
+        f"  Injected caught    : {stats['injected_flagged']}  ({stats['injected_flagged'] / max(stats['injected_total'], 1) * 100:.0f}% recall)"
+    )
     print(f"  API errors         : {stats['errors']}")
     if total > 0:
-        print(f"  Avg latency        : {stats['total_latency_ms']/total:.1f}ms")
-        print(f"  Effective TPS      : {total/elapsed:.2f}")
+        print(f"  Avg latency        : {stats['total_latency_ms'] / total:.1f}ms")
+        print(f"  Effective TPS      : {total / elapsed:.2f}")
     print(_c("=" * 70, BOLD))
     print()
 
 
 # ── CLI entry point ───────────────────────────────────────────────────────────
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Real-time transaction simulator for the Fraud Detection API",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--api-url",    default="http://localhost:8000", help="API base URL")
-    p.add_argument("--tps",        type=float, default=2.0,  help="Transactions per second")
-    p.add_argument("--duration",   type=float, default=120.0, help="Run for N seconds (0=infinite)")
-    p.add_argument("--fraud-rate", type=float, default=0.05, help="Fraction of injected frauds [0,1]")
-    p.add_argument("--seed",       type=int,   default=42,   help="Random seed")
+    p.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
+    p.add_argument("--tps", type=float, default=2.0, help="Transactions per second")
+    p.add_argument("--duration", type=float, default=120.0, help="Run for N seconds (0=infinite)")
+    p.add_argument(
+        "--fraud-rate", type=float, default=0.05, help="Fraction of injected frauds [0,1]"
+    )
+    p.add_argument("--seed", type=int, default=42, help="Random seed")
     return p.parse_args()
 
 

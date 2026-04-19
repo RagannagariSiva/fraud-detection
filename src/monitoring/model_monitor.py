@@ -42,22 +42,21 @@ Prometheus export
 from __future__ import annotations
 
 import time
-from collections import deque, defaultdict
-from dataclasses import dataclass, field
+from collections import defaultdict, deque
+from dataclasses import dataclass
 from threading import Lock
-from typing import Deque, Dict
 
 import numpy as np
 
-
 # ── Latency tracker (lock-free ring buffer) ───────────────────────────────────
+
 
 class LatencyTracker:
     """Rolling window of prediction latencies in milliseconds."""
 
     def __init__(self, window: int = 1000):
         self._window = window
-        self._buf: Deque[float] = deque(maxlen=window)
+        self._buf: deque[float] = deque(maxlen=window)
         self._lock = Lock()
 
     def record(self, latency_ms: float) -> None:
@@ -70,18 +69,19 @@ class LatencyTracker:
                 return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "mean": 0.0}
             arr = np.array(self._buf)
             return {
-                "p50":  round(float(np.percentile(arr, 50)), 2),
-                "p95":  round(float(np.percentile(arr, 95)), 2),
-                "p99":  round(float(np.percentile(arr, 99)), 2),
+                "p50": round(float(np.percentile(arr, 50)), 2),
+                "p95": round(float(np.percentile(arr, 95)), 2),
+                "p99": round(float(np.percentile(arr, 99)), 2),
                 "mean": round(float(arr.mean()), 2),
             }
 
 
 # ── Rolling counter ────────────────────────────────────────────────────────────
 
+
 @dataclass
 class _TimestampedEvent:
-    ts: float     # time.monotonic()
+    ts: float  # time.monotonic()
     value: float  # e.g. 1.0 for a fraud flag, latency ms, etc.
 
 
@@ -94,7 +94,7 @@ class RollingCounter:
 
     def __init__(self, window_seconds: float = 300.0):
         self._window = window_seconds
-        self._events: Deque[_TimestampedEvent] = deque()
+        self._events: deque[_TimestampedEvent] = deque()
         self._lock = Lock()
 
     def record(self, value: float = 1.0) -> None:
@@ -122,6 +122,7 @@ class RollingCounter:
 # ══════════════════════════════════════════════════════════════════════════════
 #  Main monitor
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class ModelMonitor:
     """
@@ -152,22 +153,22 @@ class ModelMonitor:
 
         # Rolling counters (5-min window by default)
         W = rate_window_seconds
-        self._total_predictions  = RollingCounter(W)
-        self._fraud_predictions  = RollingCounter(W)
-        self._errors             = RollingCounter(W)
-        self._low_conf           = RollingCounter(W)
+        self._total_predictions = RollingCounter(W)
+        self._fraud_predictions = RollingCounter(W)
+        self._errors = RollingCounter(W)
+        self._low_conf = RollingCounter(W)
 
         # Tier breakdown counters
-        self._tier_counts: Dict[str, RollingCounter] = defaultdict(lambda: RollingCounter(W))
+        self._tier_counts: dict[str, RollingCounter] = defaultdict(lambda: RollingCounter(W))
 
         # Probability accumulator (for mean confidence)
-        self._prob_buf: Deque[float] = deque(maxlen=1000)
+        self._prob_buf: deque[float] = deque(maxlen=1000)
         self._prob_lock = Lock()
 
         # Lifetime counters (never reset)
         self._lifetime_predictions: int = 0
-        self._lifetime_fraud:       int = 0
-        self._lifetime_errors:      int = 0
+        self._lifetime_fraud: int = 0
+        self._lifetime_errors: int = 0
         self._lifetime_lock = Lock()
 
     # ── Public recording API ──────────────────────────────────────────────────
@@ -226,14 +227,14 @@ class ModelMonitor:
         Suitable for returning from a /metrics endpoint or logging.
         """
         uptime = int(time.time() - self._start_time)
-        total_recent  = self._total_predictions.count()
-        fraud_recent  = self._fraud_predictions.count()
-        error_recent  = self._errors.count()
+        total_recent = self._total_predictions.count()
+        fraud_recent = self._fraud_predictions.count()
+        error_recent = self._errors.count()
 
         with self._prob_lock:
             probs = list(self._prob_buf)
-        avg_prob   = float(np.mean(probs)) if probs else 0.0
-        prob_std   = float(np.std(probs))  if probs else 0.0
+        avg_prob = float(np.mean(probs)) if probs else 0.0
+        prob_std = float(np.std(probs)) if probs else 0.0
 
         with self._lifetime_lock:
             lifetime_total = self._lifetime_predictions
@@ -241,8 +242,7 @@ class ModelMonitor:
             lifetime_errors = self._lifetime_errors
 
         tier_snapshot = {
-            tier: self._tier_counts[tier].count()
-            for tier in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+            tier: self._tier_counts[tier].count() for tier in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
         }
 
         return {
@@ -250,22 +250,22 @@ class ModelMonitor:
             "lifetime": {
                 "total_predictions": lifetime_total,
                 "fraud_predictions": lifetime_fraud,
-                "error_count":       lifetime_errors,
+                "error_count": lifetime_errors,
                 "lifetime_fraud_rate": round(lifetime_fraud / max(lifetime_total, 1), 6),
             },
             "rolling_5min": {
                 "total_predictions": total_recent,
                 "fraud_predictions": fraud_recent,
-                "error_count":       error_recent,
-                "fraud_rate":        round(fraud_recent / max(total_recent, 1), 6),
-                "error_rate":        round(error_recent / max(total_recent, 1), 6),
+                "error_count": error_recent,
+                "fraud_rate": round(fraud_recent / max(total_recent, 1), 6),
+                "error_rate": round(error_recent / max(total_recent, 1), 6),
                 "predictions_per_second": round(self._total_predictions.rate_per_second(), 3),
             },
             "latency_ms": self._latency.percentiles(),
             "model_confidence": {
                 "mean_probability": round(avg_prob, 6),
-                "std_probability":  round(prob_std, 6),
-                "sample_size":      len(probs),
+                "std_probability": round(prob_std, 6),
+                "sample_size": len(probs),
             },
             "risk_tier_counts_5min": tier_snapshot,
         }
@@ -329,7 +329,7 @@ class ModelMonitor:
 
         error_rate = s["rolling_5min"]["error_rate"]
         fraud_rate = s["rolling_5min"]["fraud_rate"]
-        p99        = s["latency_ms"]["p99"]
+        p99 = s["latency_ms"]["p99"]
 
         if error_rate > 0.01:
             issues.append(f"High error rate: {error_rate:.1%}")
@@ -340,8 +340,8 @@ class ModelMonitor:
 
         return {
             "healthy": len(issues) == 0,
-            "issues":  issues,
+            "issues": issues,
             "fraud_rate_5min": fraud_rate,
             "error_rate_5min": error_rate,
-            "latency_p99_ms":  p99,
+            "latency_p99_ms": p99,
         }

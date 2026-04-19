@@ -13,19 +13,19 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  Simulation tests
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestSyntheticTransaction:
     """Tests for transaction generation logic."""
 
     def test_generate_legitimate_has_all_features(self):
         import random
+
         from simulation.real_time_transactions import SyntheticTransaction
+
         rng = random.Random(42)
         txn = SyntheticTransaction.generate(rng, sim_start_time=0.0, force_fraud=False)
         for i in range(1, 29):
@@ -35,21 +35,27 @@ class TestSyntheticTransaction:
 
     def test_generate_fraud_sets_flag(self):
         import random
+
         from simulation.real_time_transactions import SyntheticTransaction
+
         rng = random.Random(42)
         txn = SyntheticTransaction.generate(rng, sim_start_time=0.0, force_fraud=True)
         assert txn.is_injected_fraud is True
 
     def test_generate_legitimate_sets_flag_false(self):
         import random
+
         from simulation.real_time_transactions import SyntheticTransaction
+
         rng = random.Random(42)
         txn = SyntheticTransaction.generate(rng, sim_start_time=0.0, force_fraud=False)
         assert txn.is_injected_fraud is False
 
     def test_amount_non_negative(self):
         import random
+
         from simulation.real_time_transactions import SyntheticTransaction
+
         rng = random.Random(99)
         for _ in range(50):
             txn = SyntheticTransaction.generate(rng, sim_start_time=0.0)
@@ -57,11 +63,13 @@ class TestSyntheticTransaction:
 
     def test_transaction_id_unique(self):
         import random
-        import time
+
         from simulation.real_time_transactions import SyntheticTransaction
+
         rng = random.Random(7)
-        ids = {SyntheticTransaction.generate(rng, sim_start_time=0.0).transaction_id
-               for _ in range(20)}
+        ids = {
+            SyntheticTransaction.generate(rng, sim_start_time=0.0).transaction_id for _ in range(20)
+        }
         # IDs should be unique (or at least mostly unique given timestamp component)
         assert len(ids) >= 15
 
@@ -71,6 +79,7 @@ class TestFraudAPIClient:
 
     def test_health_check_returns_true_on_ok(self):
         from simulation.real_time_transactions import FraudAPIClient
+
         client = FraudAPIClient("http://localhost:8000")
 
         mock_resp = MagicMock()
@@ -80,13 +89,16 @@ class TestFraudAPIClient:
 
     def test_health_check_returns_false_on_connection_error(self):
         import requests as req
+
         from simulation.real_time_transactions import FraudAPIClient
+
         client = FraudAPIClient("http://localhost:9999")
         with patch("requests.Session.get", side_effect=req.exceptions.ConnectionError):
             assert client.health_check() is False
 
     def test_predict_returns_result_on_200(self):
         from simulation.real_time_transactions import FraudAPIClient
+
         client = FraudAPIClient("http://localhost:8000")
 
         expected = {"prediction": "legitimate", "probability": 0.03, "risk_tier": "LOW"}
@@ -99,7 +111,9 @@ class TestFraudAPIClient:
 
     def test_predict_returns_none_on_error(self):
         import requests as req
+
         from simulation.real_time_transactions import FraudAPIClient
+
         client = FraudAPIClient("http://localhost:8000")
         with patch("requests.Session.post", side_effect=req.exceptions.ConnectionError):
             result = client.predict({"V1": 0.0})
@@ -110,11 +124,13 @@ class TestFraudAPIClient:
 #  Alert system tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestAlertRecord:
     """Tests for the AlertRecord data class."""
 
     def test_fraud_alert_creates_record(self):
         from monitoring.fraud_alerts import AlertRecord
+
         rec = AlertRecord(
             transaction_id="TXN-001",
             prediction="fraud",
@@ -128,14 +144,24 @@ class TestAlertRecord:
 
     def test_to_dict_contains_all_fields(self):
         from monitoring.fraud_alerts import AlertRecord
+
         rec = AlertRecord("TXN-002", "fraud", 0.75, "HIGH", 200.0)
         d = rec.to_dict()
-        for key in ("timestamp", "transaction_id", "prediction", "probability",
-                     "risk_tier", "amount", "alert_level", "action"):
+        for key in (
+            "timestamp",
+            "transaction_id",
+            "prediction",
+            "probability",
+            "risk_tier",
+            "amount",
+            "alert_level",
+            "action",
+        ):
             assert key in d, f"Missing key: {key}"
 
     def test_to_json_is_valid_json(self):
         from monitoring.fraud_alerts import AlertRecord
+
         rec = AlertRecord("TXN-003", "fraud", 0.45, "HIGH", 99.0)
         parsed = json.loads(rec.to_json())
         assert parsed["transaction_id"] == "TXN-003"
@@ -146,6 +172,7 @@ class TestRollingStats:
 
     def test_records_fraud_count(self):
         from monitoring.fraud_alerts import RollingStats
+
         stats = RollingStats(window=100)
         for _ in range(10):
             stats.record("fraud", "CRITICAL")
@@ -157,6 +184,7 @@ class TestRollingStats:
 
     def test_fraud_rate_calculation(self):
         from monitoring.fraud_alerts import RollingStats
+
         stats = RollingStats(window=100)
         for _ in range(5):
             stats.record("fraud", "HIGH")
@@ -171,6 +199,7 @@ class TestFraudAlertSystem:
 
     def test_process_legitimate_returns_none(self):
         from monitoring.fraud_alerts import FraudAlertSystem
+
         with tempfile.TemporaryDirectory() as tmpdir:
             alerter = FraudAlertSystem(log_dir=tmpdir)
             result = alerter.process(
@@ -181,7 +210,8 @@ class TestFraudAlertSystem:
         assert result is None
 
     def test_process_fraud_returns_alert_record(self):
-        from monitoring.fraud_alerts import FraudAlertSystem, AlertRecord
+        from monitoring.fraud_alerts import AlertRecord, FraudAlertSystem
+
         with tempfile.TemporaryDirectory() as tmpdir:
             alerter = FraudAlertSystem(log_dir=tmpdir)
             result = alerter.process(
@@ -195,6 +225,7 @@ class TestFraudAlertSystem:
 
     def test_alert_written_to_log_file(self):
         from monitoring.fraud_alerts import FraudAlertSystem
+
         with tempfile.TemporaryDirectory() as tmpdir:
             alerter = FraudAlertSystem(log_dir=tmpdir, log_filename="test_alerts.jsonl")
             alerter.process(
@@ -213,6 +244,7 @@ class TestFraudAlertSystem:
 
     def test_multiple_alerts_all_logged(self):
         from monitoring.fraud_alerts import FraudAlertSystem
+
         with tempfile.TemporaryDirectory() as tmpdir:
             alerter = FraudAlertSystem(log_dir=tmpdir, log_filename="multi_alerts.jsonl")
             for i in range(5):
@@ -228,6 +260,7 @@ class TestFraudAlertSystem:
 
     def test_get_stats_returns_dict(self):
         from monitoring.fraud_alerts import FraudAlertSystem
+
         with tempfile.TemporaryDirectory() as tmpdir:
             alerter = FraudAlertSystem(log_dir=tmpdir)
             stats = alerter.get_stats()
