@@ -46,7 +46,6 @@ From raw transaction data → live inference API → real-time dashboard → dri
 
 [![Live Dashboard — Click to Open](imgs/DashBord.png)](https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/)
 
-
 </div>
 
 ---
@@ -131,21 +130,29 @@ All dashboard pages shown below, arranged two per row:
   </tr>
   <tr><td colspan="2"><br/></td></tr>
   <tr>
-    <td width="50%" align="center">
-      <img src="imgs/Screen%20short-7.png" width="100%" alt="Screenshot 7"/>
+    <td colspan="2" align="center">
+      <img src="imgs/Screen%20short-7.png" width="50%" alt="Screenshot 7"/>
       <br/><br/>
       <b>Screenshot 7 — Model Health</b><br/>
       Live model health status — prediction count, uptime, scaler and model load confirmation.
     </td>
-    <td width="50%" align="center">
-      <br/><br/><br/><br/>
-      <b>Dataset</b><br/>
-      <a href="https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud">Credit Card Fraud Detection</a> by ULB Machine Learning Group.<br/>
-      284,807 transactions · 492 fraud cases · 0.172% fraud rate.<br/>
-      Download from Kaggle → place at <code>data/raw/creditcard.csv</code>
-    </td>
   </tr>
 </table>
+
+---
+
+## Dataset
+
+<div align="center">
+
+**[Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)** by ULB Machine Learning Group.
+
+284,807 transactions · 492 fraud cases · 0.172% fraud rate.
+
+Download from Kaggle → place at `data/raw/creditcard.csv`
+
+</div>
+
 ---
 
 ## Why This Is Production-Grade
@@ -224,7 +231,7 @@ XGBoost is the active model — loaded at API startup and used for all predictio
 
 ---
 
-##  API Reference
+## API Reference
 
 **Base URL:** `http://localhost:8000` &nbsp;|&nbsp; **Swagger UI:** `http://localhost:8000/docs`
 
