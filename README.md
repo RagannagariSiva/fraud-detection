@@ -375,7 +375,7 @@ fraud-detection/
 ---
 
 <div align="center">
-<center><h2>Frude Detection System</h2></center>
+<center><h2>Fraude Detection System</h2></center>
 *Production-grade ML · End-to-end · XGBoost · FastAPI · Streamlit · MLflow*
 
 </div>
