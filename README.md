@@ -1,338 +1,1525 @@
-# Fraud Detection ML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudGuard — Credit Card Fraud Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #030712;
+    --surface: #0d1117;
+    --surface2: #111827;
+    --border: #1f2937;
+    --border-glow: #10b98133;
+    --accent: #10b981;
+    --accent2: #f59e0b;
+    --accent3: #3b82f6;
+    --danger: #ef4444;
+    --text: #f9fafb;
+    --muted: #6b7280;
+    --muted2: #374151;
+    --code-bg: #0a0f1a;
+  }
 
-A production-grade credit card fraud detection system built end-to-end — from raw transaction data to a live inference API, a real-time analytics dashboard, experiment tracking, and automated drift monitoring.
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-Click the image below to open the live dashboard:
+  html { scroll-behavior: smooth; }
 
-[![Live Dashboard](imgs/DashBord.png)](https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/)
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
 
----
+  /* ── ANIMATED GRID BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(16,185,129,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16,185,129,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-## What this project is
+  /* ── SCAN LINE ── */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -100%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
 
-Most fraud detection projects stop at training a model and printing accuracy. This one goes all the way to production. It handles every engineering concern that matters when you actually deploy a machine learning model in a real system:
+  @keyframes scan {
+    0% { top: -2px; }
+    100% { top: 100vh; }
+  }
 
-The scaler is fitted only on the training set and saved to disk, then loaded at inference time. This prevents training-serving skew, which is the most common silent failure in deployed ML systems. If the scaler sees test data during fitting, the model learns a subtly wrong representation and fails in production without any error message.
+  /* ── LAYOUT ── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 1;
+  }
 
-The feature column order is saved alongside the model. Scikit-learn models are sensitive to the order of input columns, and Python dictionary iteration order is not guaranteed to be consistent across environments. Saving the column list explicitly eliminates this class of bug entirely.
+  /* ── HERO ── */
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
 
-The decision threshold is calibrated on the validation set using Youden's J statistic instead of the default 0.5. A missed fraud costs roughly $80. A false positive costs roughly $5 in analyst review time. Given that cost asymmetry, a lower threshold catches more fraud at the cost of more false alerts, which is the correct tradeoff for this domain.
+  .hero-glow {
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(16,185,129,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
 
-SMOTE oversampling is applied only to the training split, never before the split. Applying SMOTE before splitting leaks synthetic minority samples into the test set, which inflates every reported metric and produces a model that appears to perform better than it actually does.
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s ease both;
+  }
 
-Drift detection compares live feature distributions against the training baseline using Population Stability Index and a Kolmogorov-Smirnov test on every feature. PSI is the industry standard in credit risk monitoring. KS catches distribution shifts that PSI misses when changes fall within a single bin boundary.
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid;
+    letter-spacing: 0.02em;
+  }
 
----
+  .badge-green { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #34d399; }
+  .badge-blue  { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
+  .badge-amber { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24; }
+  .badge-red   { background: rgba(239,68,68,0.1);  border-color: rgba(239,68,68,0.3);  color: #f87171; }
+  .badge-purple{ background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); color: #a78bfa; }
 
-## Dashboard pages
+  .hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
 
-![Dashboard Overview](imgs/DashBord.png)
+  .hero-title .accent { color: var(--accent); }
+  .hero-title .dim { color: var(--muted); }
 
-![Live Prediction](imgs/Local%20host.png)
+  .hero-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
 
-![Model Analysis](imgs/Machine%20Learning.png)
+  .hero-desc {
+    max-width: 680px;
+    color: #9ca3af;
+    font-size: 16px;
+    line-height: 1.75;
+    margin-bottom: 36px;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
 
-![Screen 1](imgs/Screen%20short-1.png)
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
 
-![Screen 2](imgs/Screen%20short-2.png)
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 1px solid;
+  }
 
-![Screen 3](imgs/Screen%20short-3.png)
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    box-shadow: 0 0 20px rgba(16,185,129,0.3);
+  }
+  .btn-primary:hover {
+    background: #34d399;
+    box-shadow: 0 0 32px rgba(16,185,129,0.5);
+    transform: translateY(-1px);
+  }
 
-![Screen 4](imgs/Screen%20short-4.png)
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+  }
 
-![Screen 5](imgs/Screen%20short-5.png)
+  /* ── KPI STRIP ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 48px 0;
+  }
 
-![Screen 6](imgs/Screen%20short-6.png)
+  .kpi-item {
+    background: var(--surface);
+    padding: 24px;
+    text-align: center;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .kpi-item:hover { background: var(--surface2); }
+  .kpi-item::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 0; height: 2px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+  .kpi-item:hover::after { width: 60%; }
 
-![Screen 7](imgs/Screen%20short-7.png)
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
 
-The dashboard has five pages. The Overview page shows total alerts, critical and high-risk counts, average fraud probability, and financial exposure in real time. The Live Prediction page lets you score any transaction manually against the model, with a probability gauge and tier classification. The Model Analysis page shows PR curves, ROC curves, confusion matrices, and SHAP feature importance plots. The Alert Feed page streams live fraud alerts as the simulator runs. The Batch Scoring page accepts a CSV upload and returns predictions for up to 10,000 rows.
+  .kpi-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
 
----
+  /* ── SECTION ── */
+  section {
+    padding: 64px 0;
+    border-bottom: 1px solid var(--border);
+  }
 
-## Model performance
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::before {
+    content: '';
+    display: block;
+    width: 24px; height: 1px;
+    background: var(--accent);
+  }
 
-Evaluated on the held-out test set, which is 20% of the data and was never seen during training or threshold calibration. All numbers come from the real Kaggle dataset, not synthetic data.
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 800;
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
 
-| Model | PR-AUC | ROC-AUC | Recall | Precision | F1 |
-|---|---|---|---|---|---|
-| XGBoost | 0.870 | 0.978 | 0.854 | 0.882 | 0.868 |
-| Random Forest | 0.841 | 0.971 | 0.826 | 0.863 | 0.844 |
-| Decision Tree | 0.631 | 0.918 | 0.784 | 0.607 | 0.684 |
+  .section-desc {
+    color: #9ca3af;
+    max-width: 640px;
+    margin-bottom: 40px;
+  }
 
-PR-AUC is the primary metric rather than accuracy because a model that classifies every transaction as legitimate achieves 99.83% accuracy while catching zero fraud. PR-AUC measures the tradeoff between precision and recall on the minority class, which is the correct metric for heavily imbalanced datasets.
+  /* ── DASHBOARD CARD ── */
+  .dashboard-hero-card {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .dashboard-hero-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 40px rgba(16,185,129,0.15);
+    transform: translateY(-3px);
+  }
 
-XGBoost is the active model. It is loaded at API startup and used for all predictions.
+  .dashboard-hero-card img {
+    width: 100%;
+    display: block;
+    transition: transform 0.4s ease;
+  }
+  .dashboard-hero-card:hover img { transform: scale(1.02); }
 
----
+  .dashboard-hero-card .card-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(3,7,18,0.9) 0%, transparent 50%);
+    display: flex;
+    align-items: flex-end;
+    padding: 28px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .dashboard-hero-card:hover .card-overlay { opacity: 1; }
 
-## Business impact
+  .card-overlay-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 
-Based on test set results at threshold 0.40, using $80 average fraud loss and $5 per false positive review:
+  .overlay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  .overlay-btn:hover { background: #34d399; }
 
-| Metric | Value |
-|---|---|
-| Fraud caught | ~$39,200 |
-| Fraud missed | ~$6,800 |
-| Review cost | ~$1,100 |
-| Net benefit | ~$38,100 |
-| ROI | ~3,400% |
+  /* ── SCREENSHOT GRID ── */
+  .screenshot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
 
----
+  .screenshot-card {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: all 0.3s ease;
+    group: true;
+  }
+  .screenshot-card:hover {
+    border-color: rgba(16,185,129,0.4);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.2);
+    transform: translateY(-4px);
+    z-index: 2;
+  }
 
-## System architecture
+  .screenshot-card img {
+    width: 100%;
+    display: block;
+    transition: transform 0.4s ease;
+  }
+  .screenshot-card:hover img { transform: scale(1.04); }
 
-```
-Offline training                          Online serving
-─────────────────────────────────         ─────────────────────────────────
+  .screenshot-label {
+    position: absolute;
+    top: 10px; left: 10px;
+    background: rgba(3,7,18,0.85);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 9px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    backdrop-filter: blur(6px);
+  }
 
-creditcard.csv                            HTTP client / payment network
-      |                                             |
-  src/data/loader.py                          POST /predict
-  src/data/preprocessing.py                       |
-      |                                    api/main.py  (FastAPI)
-  src/features/feature_engineering.py             |
-  src/features/resampling.py (SMOTE)       src/inference/predictor.py
-      |                                             |
-  src/training/train_model.py              models/xgboost_model.pkl
-  src/training/tuning.py  (Optuna)         models/scaler.pkl
-      |                                    models/feature_names.pkl
-  MLflow experiment log                            |
-  models/*.pkl  <─────────────────         src/monitoring/model_monitor.py
-  models/drift_baseline.json                       |
-      |                                    dashboard/app.py  (Streamlit)
-  reports/figures/*.png
-```
+  .screenshot-caption {
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+  }
 
-The training pipeline runs in 11 named phases. Each phase logs its start and end so a failed run immediately shows which phase broke. Phase 4 applies SMOTE to the training split only. Phase 9 calibrates the decision threshold on the validation set. Phase 10 generates SHAP explainability plots. Phase 11 calculates the business impact estimate.
+  /* ── MODEL TABLE ── */
+  .model-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
 
-The serving path loads the predictor at API startup via FastAPI's lifespan event. The predictor loads the model, scaler, and feature name list and refuses to start if any file is missing, because a partial load produces silently wrong predictions. Every prediction is recorded in the model monitor, which maintains rolling 5-minute windows for fraud rate, error rate, throughput, and latency percentiles.
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
 
----
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
 
-## Project layout
+  th {
+    padding: 14px 18px;
+    text-align: left;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
 
-```
-fraud-detection/
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr.active-row { background: rgba(16,185,129,0.05); }
+  tbody tr.active-row td:first-child { color: var(--accent); }
+
+  td { padding: 14px 18px; color: #d1d5db; }
+
+  .metric-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .metric-bar {
+    flex: 1; height: 5px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .metric-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1s ease;
+  }
+  .fill-green { background: var(--accent); }
+  .fill-blue  { background: var(--accent3); }
+  .fill-amber { background: var(--accent2); }
+
+  /* ── IMPACT CARDS ── */
+  .impact-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .impact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .impact-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .impact-card.green::before { background: var(--accent); }
+  .impact-card.blue::before  { background: var(--accent3); }
+  .impact-card.amber::before { background: var(--accent2); }
+  .impact-card.red::before   { background: var(--danger); }
+
+  .impact-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(16,185,129,0.3);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  }
+
+  .impact-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.7rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .impact-card.green .impact-value { color: var(--accent); }
+  .impact-card.blue .impact-value  { color: #60a5fa; }
+  .impact-card.amber .impact-value { color: #fbbf24; }
+  .impact-card.red .impact-value   { color: #f87171; }
+
+  .impact-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── ARCH BLOCK ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .arch-col {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .arch-col:hover { border-color: rgba(16,185,129,0.3); }
+
+  .arch-col-header {
+    padding: 12px 18px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .arch-col pre {
+    padding: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #9ca3af;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 24px 0;
+  }
+
+  .code-header {
+    padding: 10px 18px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .code-lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .code-dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-red { background: #ef4444; }
+  .dot-amber { background: #f59e0b; }
+  .dot-green { background: #10b981; }
+
+  .code-block pre {
+    padding: 20px 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #9ca3af;
+    overflow-x: auto;
+  }
+
+  .code-block pre .kw  { color: #c084fc; }
+  .code-block pre .fn  { color: #60a5fa; }
+  .code-block pre .str { color: #34d399; }
+  .code-block pre .cm  { color: #4b5563; }
+  .code-block pre .num { color: #fbbf24; }
+  .code-block pre .op  { color: #f472b6; }
+
+  /* ── API TABLE ── */
+  .api-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .api-row {
+    display: grid;
+    grid-template-columns: 60px 200px 1fr;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .api-row:last-child { border-bottom: none; }
+  .api-row:hover { background: var(--surface2); }
+
+  .api-row.head {
+    background: var(--surface2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .api-cell { padding: 14px 18px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #d1d5db; }
+
+  .method {
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .method.get  { color: #34d399; }
+  .method.post { color: #60a5fa; }
+
+  /* ── RISK TIER ── */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .tier-card {
+    border-radius: 8px;
+    padding: 20px 16px;
+    border: 1px solid;
+    transition: transform 0.2s;
+  }
+  .tier-card:hover { transform: translateY(-3px); }
+
+  .tier-card.low    { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.25); }
+  .tier-card.medium { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.25); }
+  .tier-card.high   { background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.25); }
+  .tier-card.critical { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.25); }
+
+  .tier-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+  .tier-card.low .tier-name     { color: var(--accent); }
+  .tier-card.medium .tier-name  { color: var(--accent2); }
+  .tier-card.high .tier-name    { color: var(--danger); }
+  .tier-card.critical .tier-name { color: #a78bfa; }
+
+  .tier-range {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #f9fafb;
+    margin-bottom: 4px;
+  }
+  .tier-action {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── TECH STACK ── */
+  .tech-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .tech-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #d1d5db;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .tech-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(16,185,129,0.05);
+  }
+
+  /* ── TOC NAV ── */
+  .toc {
+    position: fixed;
+    top: 50%;
+    right: 24px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .toc-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted2);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .toc-dot:hover, .toc-dot.active {
+    background: var(--accent);
+    transform: scale(1.5);
+  }
+  .toc-dot::before {
+    content: attr(data-label);
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .toc-dot:hover::before { opacity: 1; }
+
+  /* ── COLLAPSIBLE ── */
+  details {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  details:hover { border-color: rgba(16,185,129,0.3); }
+  details[open] { border-color: rgba(16,185,129,0.4); }
+
+  summary {
+    padding: 16px 20px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #d1d5db;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    list-style: none;
+    transition: background 0.15s;
+  }
+  summary:hover { background: var(--surface2); }
+  summary .arrow {
+    margin-left: auto;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+  details[open] summary .arrow { transform: rotate(90deg); }
+
+  .details-body {
+    padding: 20px;
+    background: var(--code-bg);
+    border-top: 1px solid var(--border);
+  }
+  .details-body pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #9ca3af;
+    line-height: 1.8;
+    white-space: pre-wrap;
+  }
+
+  /* ── FEATURE LIST ── */
+  .feature-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .feature-item:hover {
+    border-color: rgba(16,185,129,0.3);
+    background: var(--surface2);
+    transform: translateX(4px);
+  }
+
+  .feature-icon {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .feature-text h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .feature-text p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 40px 0;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+
+  footer .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  footer p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .kpi-strip     { grid-template-columns: repeat(2,1fr); }
+    .impact-grid   { grid-template-columns: repeat(2,1fr); }
+    .screenshot-grid { grid-template-columns: 1fr; }
+    .arch-grid     { grid-template-columns: 1fr; }
+    .tier-grid     { grid-template-columns: repeat(2,1fr); }
+    .feature-list  { grid-template-columns: 1fr; }
+    .toc           { display: none; }
+  }
+
+  /* ── CURSOR GLOW ── */
+  .cursor-glow {
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%);
+    position: fixed;
+    pointer-events: none;
+    z-index: 0;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Cursor glow -->
+<div class="cursor-glow" id="cursorGlow"></div>
+
+<!-- TOC -->
+<nav class="toc" id="toc">
+  <div class="toc-dot active" data-label="Overview" data-target="hero" onclick="scrollTo('hero')"></div>
+  <div class="toc-dot" data-label="Dashboard" data-target="dashboard" onclick="scrollTo('dashboard')"></div>
+  <div class="toc-dot" data-label="Performance" data-target="performance" onclick="scrollTo('performance')"></div>
+  <div class="toc-dot" data-label="Impact" data-target="impact" onclick="scrollTo('impact')"></div>
+  <div class="toc-dot" data-label="Architecture" data-target="architecture" onclick="scrollTo('architecture')"></div>
+  <div class="toc-dot" data-label="API" data-target="api" onclick="scrollTo('api')"></div>
+  <div class="toc-dot" data-label="Setup" data-target="setup" onclick="scrollTo('setup')"></div>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="hero" id="hero">
+  <div class="container">
+    <div class="hero-glow"></div>
+
+    <div class="badge-row">
+      <span class="badge badge-green">⬡ Production-Ready</span>
+      <span class="badge badge-blue">◈ XGBoost · PR-AUC 0.870</span>
+      <span class="badge badge-amber">⚡ FastAPI · Streamlit</span>
+      <span class="badge badge-purple">✦ MLflow · Optuna · SHAP</span>
+      <span class="badge badge-red">⬟ 39 Tests Passing</span>
+    </div>
+
+    <h1 class="hero-title">
+      Fraud<span class="accent">Guard</span><br>
+      <span class="dim">ML Detection System</span>
+    </h1>
+    <p class="hero-sub">// credit card fraud detection · end-to-end · production-grade</p>
+    <p class="hero-desc">
+      A production-grade credit card fraud detection system built end-to-end — from raw transaction data
+      to a live inference API, real-time analytics dashboard, experiment tracking, and automated drift monitoring.
+      Not just a notebook. A real system.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/" target="_blank" class="btn btn-primary">
+        ⬡ View Live Dashboard
+      </a>
+      <a href="https://github.com/RagannagariSiva/fraud-detection" target="_blank" class="btn btn-secondary">
+        ◈ GitHub Repository
+      </a>
+    </div>
+
+    <div class="kpi-strip reveal">
+      <div class="kpi-item">
+        <div class="kpi-value">0.870</div>
+        <div class="kpi-label">PR-AUC Score</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-value">0.978</div>
+        <div class="kpi-label">ROC-AUC Score</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-value">3,400%</div>
+        <div class="kpi-label">ROI Estimate</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-value">39</div>
+        <div class="kpi-label">Tests Passing</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<section id="dashboard">
+  <div class="container">
+    <div class="section-label">Live System</div>
+    <h2 class="section-title reveal">Dashboard &amp; Screens</h2>
+    <p class="section-desc reveal">Five-page Streamlit dashboard with real-time fraud alerts, model analysis, batch scoring, and live prediction — all connected to the FastAPI inference backend.</p>
+
+    <!-- Main dashboard card -->
+    <div class="dashboard-hero-card reveal">
+      <img src="imgs/DashBord.png" alt="Live Dashboard" onerror="this.style.display='none'; this.parentElement.querySelector('.img-fallback').style.display='flex'">
+      <div class="img-fallback" style="display:none; height:280px; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:#4b5563;">
+        <div style="font-size:3rem">📊</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px;">Dashboard Preview</div>
+      </div>
+      <div class="card-overlay">
+        <div class="card-overlay-content">
+          <a href="https://fraud-detection-988itbtnyczqkfo3fqqk8e.streamlit.app/" target="_blank" class="overlay-btn">
+            ↗ Open Live Dashboard
+          </a>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#9ca3af;">Real-time · Auto-refresh · Live alerts</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screenshot grid 2-col -->
+    <div class="screenshot-grid reveal" style="margin-top:16px;">
+      <div class="screenshot-card">
+        <img src="imgs/Local%20host.png" alt="Live Prediction" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Page 02</div>
+        <div class="screenshot-caption">⬡ Live Prediction — score any transaction with probability gauge</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Machine%20Learning.png" alt="Model Analysis" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Page 03</div>
+        <div class="screenshot-caption">◈ Model Analysis — PR/ROC curves, confusion matrix, SHAP plots</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-1.png" alt="Screen 1" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Page 04</div>
+        <div class="screenshot-caption">⬟ Alert Feed — streaming live fraud alerts from simulator</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-2.png" alt="Screen 2" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Page 05</div>
+        <div class="screenshot-caption">⚡ Batch Scoring — upload CSV, get predictions for 10K rows</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-3.png" alt="Screen 3" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Detail</div>
+        <div class="screenshot-caption">✦ Drift detection — PSI + KS across all feature distributions</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-4.png" alt="Screen 4" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Detail</div>
+        <div class="screenshot-caption">◈ Rolling metrics — 5-min windows, P50 / P95 / P99 latency</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-5.png" alt="Screen 5" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Detail</div>
+        <div class="screenshot-caption">⬡ Feature importance — SHAP values per transaction</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="imgs/Screen%20short-6.png" alt="Screen 6" onerror="this.style.background='#111827'; this.style.height='180px'">
+        <div class="screenshot-label">Detail</div>
+        <div class="screenshot-caption">⚡ Business impact — live cost/benefit estimates per threshold</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PERFORMANCE ═══════════════ -->
+<section id="performance">
+  <div class="container">
+    <div class="section-label">Evaluation</div>
+    <h2 class="section-title reveal">Model Performance</h2>
+    <p class="section-desc reveal">Evaluated on a held-out test set (20% of data, never seen during training or threshold calibration). All numbers from the real Kaggle dataset — not synthetic data.</p>
+
+    <div class="model-table-wrap reveal">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>PR-AUC</th>
+            <th>ROC-AUC</th>
+            <th>Recall</th>
+            <th>Precision</th>
+            <th>F1</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="active-row">
+            <td>⬡ XGBoost <span style="background:rgba(16,185,129,0.15); color:var(--accent); font-size:10px; padding:2px 7px; border-radius:4px; margin-left:6px; font-family:'JetBrains Mono',monospace;">ACTIVE</span></td>
+            <td><div class="metric-bar-wrap">0.870 <div class="metric-bar"><div class="metric-fill fill-green" style="width:87%"></div></div></div></td>
+            <td><div class="metric-bar-wrap">0.978 <div class="metric-bar"><div class="metric-fill fill-green" style="width:97.8%"></div></div></div></td>
+            <td>0.854</td>
+            <td>0.882</td>
+            <td>0.868</td>
+          </tr>
+          <tr>
+            <td>◈ Random Forest</td>
+            <td><div class="metric-bar-wrap">0.841 <div class="metric-bar"><div class="metric-fill fill-blue" style="width:84.1%"></div></div></div></td>
+            <td><div class="metric-bar-wrap">0.971 <div class="metric-bar"><div class="metric-fill fill-blue" style="width:97.1%"></div></div></div></td>
+            <td>0.826</td>
+            <td>0.863</td>
+            <td>0.844</td>
+          </tr>
+          <tr>
+            <td>⬟ Decision Tree</td>
+            <td><div class="metric-bar-wrap">0.631 <div class="metric-bar"><div class="metric-fill fill-amber" style="width:63.1%"></div></div></div></td>
+            <td><div class="metric-bar-wrap">0.918 <div class="metric-bar"><div class="metric-fill fill-amber" style="width:91.8%"></div></div></div></td>
+            <td>0.784</td>
+            <td>0.607</td>
+            <td>0.684</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px; padding:16px 20px; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.15); border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#9ca3af; reveal">
+      <span style="color:var(--accent)">// WHY PR-AUC?</span> — A model classifying every transaction as legitimate achieves 99.83% accuracy while catching zero fraud.
+      PR-AUC measures the precision-recall tradeoff on the minority class — the correct metric for heavily imbalanced datasets.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ IMPACT ═══════════════ -->
+<section id="impact">
+  <div class="container">
+    <div class="section-label">Business Value</div>
+    <h2 class="section-title reveal">Financial Impact</h2>
+    <p class="section-desc reveal">Based on test set results at threshold 0.40 — $80 avg fraud loss, $5 per false positive review.</p>
+
+    <div class="impact-grid reveal">
+      <div class="impact-card green">
+        <div class="impact-value">$39,200</div>
+        <div class="impact-label">Fraud Caught</div>
+      </div>
+      <div class="impact-card red">
+        <div class="impact-value">$6,800</div>
+        <div class="impact-label">Fraud Missed</div>
+      </div>
+      <div class="impact-card blue">
+        <div class="impact-value">$1,100</div>
+        <div class="impact-label">Review Cost</div>
+      </div>
+      <div class="impact-card amber">
+        <div class="impact-value">3,400%</div>
+        <div class="impact-label">Net ROI</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; padding:16px 20px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#9ca3af;">
+      <span style="color:var(--accent2)">// THRESHOLD RATIONALE</span> — Youden's J statistic calibrates threshold at 0.40 rather than default 0.50.
+      A missed fraud costs ~$80. A false positive costs ~$5 in analyst review time.
+      Given the cost asymmetry, a lower threshold maximises net benefit.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ ARCHITECTURE ═══════════════ -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label">System Design</div>
+    <h2 class="section-title reveal">Architecture</h2>
+    <p class="section-desc reveal">Clean separation between offline training and online serving. Each of the 11 pipeline phases logs start and end — a failed run immediately shows the exact failure point.</p>
+
+    <div class="arch-grid reveal">
+      <div class="arch-col">
+        <div class="arch-col-header">⬡ Offline Training</div>
+        <pre>creditcard.csv
+      |
+  loader.py · preprocessing.py
+      |
+  feature_engineering.py
+  resampling.py (SMOTE)
+      |
+  train_model.py
+  tuning.py  (Optuna)
+      |
+  MLflow experiment log
+  models/*.pkl
+  models/drift_baseline.json
+      |
+  reports/figures/*.png</pre>
+      </div>
+      <div class="arch-col">
+        <div class="arch-col-header">◈ Online Serving</div>
+        <pre>HTTP client / payment network
+          |
+     POST /predict
+          |
+  api/main.py  (FastAPI)
+          |
+  inference/predictor.py
+          |
+  xgboost_model.pkl
+  scaler.pkl
+  feature_names.pkl
+          |
+  model_monitor.py
+          |
+  dashboard/app.py (Streamlit)</pre>
+      </div>
+    </div>
+
+    <!-- Collapsible project layout -->
+    <div style="margin-top:24px;">
+      <details class="reveal">
+        <summary>
+          <span style="color:var(--accent)">⬡</span> Project File Layout
+          <span class="arrow">▶</span>
+        </summary>
+        <div class="details-body">
+          <pre>fraud-detection/
 ├── src/
-│   ├── data/               Data loading, cleaning, scaling, stratified splits
-│   ├── features/           Feature engineering and SMOTE resampling
-│   ├── training/           Model training with MLflow logging, Optuna tuning, pipeline
-│   ├── inference/          FraudPredictor class and Pydantic request/response schemas
-│   ├── models/             Evaluation: metrics, ROC/PR curves, confusion matrix
-│   └── monitoring/         Drift detection (PSI + KS) and rolling model health metrics
-├── api/                    FastAPI application — prediction endpoints
-├── dashboard/              Streamlit analytics interface (5 pages)
-├── monitoring/             Fraud alert dispatcher and JSONL event log
-├── simulation/             Synthetic transaction stream for load testing the API
+│   ├── data/           Data loading, cleaning, scaling, stratified splits
+│   ├── features/       Feature engineering + SMOTE resampling
+│   ├── training/       MLflow logging, Optuna tuning, 11-phase pipeline
+│   ├── inference/      FraudPredictor class + Pydantic schemas
+│   ├── models/         Evaluation: ROC/PR curves, confusion matrix
+│   └── monitoring/     Drift detection (PSI + KS) + rolling health metrics
+├── api/                FastAPI application — prediction endpoints
+├── dashboard/          Streamlit analytics interface (5 pages)
+├── monitoring/         Fraud alert dispatcher + JSONL event log
+├── simulation/         Synthetic transaction stream for load testing
 ├── scripts/
-│   ├── retrain.py          Drift-gated automated retraining with model promotion
-│   └── evaluate.py         Standalone evaluation on any model and any CSV
-├── tests/                  Unit and integration tests (pytest, 39 tests)
-├── notebooks/              EDA and model comparison (Jupytext percent-format)
-├── docs/                   Architecture, pipeline, API reference, system design
-├── config/config.yaml      Single configuration file for all components
-├── Makefile                All common operations as make targets
-├── Dockerfile              Multi-stage production image
-└── docker-compose.yml      Full stack: API, Dashboard, MLflow, Simulator
-```
+│   ├── retrain.py      Drift-gated automated retraining + model promotion
+│   └── evaluate.py     Standalone evaluation on any model + any CSV
+├── tests/              Unit + integration tests (pytest, 39 tests)
+├── notebooks/          EDA + model comparison (Jupytext percent-format)
+├── docs/               Architecture, pipeline, API reference, system design
+├── config/config.yaml  Single config file for all components
+├── Makefile            All common operations as make targets
+├── Dockerfile          Multi-stage production image
+└── docker-compose.yml  Full stack: API, Dashboard, MLflow, Simulator</pre>
+        </div>
+      </details>
 
----
+      <details class="reveal">
+        <summary>
+          <span style="color:var(--accent3)">◈</span> Engineering Decisions
+          <span class="arrow">▶</span>
+        </summary>
+        <div class="details-body">
+          <pre><span style="color:var(--accent)">Scaler fitted on training set only</span>
+  → Prevents training-serving skew — the most common silent failure in deployed ML.
+  → Saved to disk and loaded at inference time.
 
-## Setup
+<span style="color:var(--accent)">Feature column order saved alongside model</span>
+  → scikit-learn models are sensitive to column order.
+  → Eliminates Python dict iteration order inconsistencies across environments.
 
-Requirements: Python 3.10 or higher.
+<span style="color:var(--accent)">SMOTE applied after train/test split</span>
+  → Applying SMOTE before splitting leaks synthetic samples into test set.
+  → Inflated metrics, wrong model — this is Phase 4 in the pipeline.
 
-```bash
-git clone https://github.com/RagannagariSiva/fraud-detection.git
-cd fraud-detection
+<span style="color:var(--accent)">Threshold at 0.40 via Youden's J</span>
+  → Calibrated on validation set, never test set.
+  → Cost asymmetry: $80 missed fraud vs $5 false positive review.
 
-python3 -m venv venv
-source venv/bin/activate
+<span style="color:var(--accent)">Dual drift detection: PSI + KS</span>
+  → PSI is industry standard in credit risk monitoring.
+  → KS catches distribution shifts PSI misses when changes fall within a bin boundary.</pre>
+        </div>
+      </details>
+    </div>
 
-pip install --upgrade pip
-pip install -r requirements.txt
-```
+    <!-- Feature engineering pills -->
+    <div style="margin-top:28px;">
+      <div class="section-label" style="margin-bottom:16px;">Feature Engineering</div>
+      <div class="feature-list reveal">
+        <div class="feature-item">
+          <div class="feature-icon">🕐</div>
+          <div class="feature-text">
+            <h4>hour_of_day · is_night</h4>
+            <p>Fraud skews heavily toward off-hours in card-present fraud studies</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📊</div>
+          <div class="feature-text">
+            <h4>log_amount · amount_z</h4>
+            <p>Compresses extreme right tail; MAD z-score for outlier detection</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">✕</div>
+          <div class="feature-text">
+            <h4>V1_V4 · V12_V14 · V1_V17</h4>
+            <p>Interaction products between highest-importance PCA features</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">|x|</div>
+          <div class="feature-text">
+            <h4>V14_abs</h4>
+            <p>Absolute value of V14 — the single strongest fraud predictor in published analyses</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-Dataset: Download `creditcard.csv` from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and place it at `data/raw/creditcard.csv`. If the file is absent, the pipeline generates a statistically equivalent synthetic dataset automatically so all tests and CI pass without the download.
+<!-- ═══════════════ API ═══════════════ -->
+<section id="api">
+  <div class="container">
+    <div class="section-label">Endpoints</div>
+    <h2 class="section-title reveal">API Reference</h2>
+    <p class="section-desc reveal">FastAPI inference API with full Swagger UI at <code style="background:var(--code-bg); padding:2px 8px; border-radius:4px; font-size:12px; color:var(--accent); border:1px solid var(--border);">localhost:8000/docs</code></p>
 
----
+    <div class="api-table-wrap reveal">
+      <div class="api-row head">
+        <div class="api-cell">Method</div>
+        <div class="api-cell">Endpoint</div>
+        <div class="api-cell">Description</div>
+      </div>
+      <div class="api-row">
+        <div class="api-cell"><span class="method get">GET</span></div>
+        <div class="api-cell">/health</div>
+        <div class="api-cell">Liveness check with live fraud rate and P99 latency</div>
+      </div>
+      <div class="api-row">
+        <div class="api-cell"><span class="method get">GET</span></div>
+        <div class="api-cell">/info</div>
+        <div class="api-cell">Model name, threshold, feature count, training metadata</div>
+      </div>
+      <div class="api-row">
+        <div class="api-cell"><span class="method get">GET</span></div>
+        <div class="api-cell">/metrics</div>
+        <div class="api-cell">Operational metrics in JSON or Prometheus text format</div>
+      </div>
+      <div class="api-row">
+        <div class="api-cell"><span class="method post">POST</span></div>
+        <div class="api-cell">/predict</div>
+        <div class="api-cell">Score a single transaction. Add <code>?explain=true</code> for SHAP values</div>
+      </div>
+      <div class="api-row">
+        <div class="api-cell"><span class="method post">POST</span></div>
+        <div class="api-cell">/predict/batch</div>
+        <div class="api-cell">Score a CSV upload — up to 10,000 rows</div>
+      </div>
+    </div>
 
-## Running the project
+    <!-- Risk tiers -->
+    <div style="margin-top:32px;">
+      <div class="section-label" style="margin-bottom:16px;">Risk Tiers</div>
+      <div class="tier-grid reveal">
+        <div class="tier-card low">
+          <div class="tier-name">⬡ Low</div>
+          <div class="tier-range">&lt; 15%</div>
+          <div class="tier-action">✓ Allow transaction</div>
+        </div>
+        <div class="tier-card medium">
+          <div class="tier-name">◈ Medium</div>
+          <div class="tier-range">15% – 40%</div>
+          <div class="tier-action">⚠ Soft review</div>
+        </div>
+        <div class="tier-card high">
+          <div class="tier-name">⬟ High</div>
+          <div class="tier-range">40% – 70%</div>
+          <div class="tier-action">✗ Manual review</div>
+        </div>
+        <div class="tier-card critical">
+          <div class="tier-name">✦ Critical</div>
+          <div class="tier-range">&gt; 70%</div>
+          <div class="tier-action">⛔ Auto-block</div>
+        </div>
+      </div>
+    </div>
 
-Train the model, which takes around 2 minutes on CPU:
-
-```bash
-python main.py
-```
-
-This runs all 11 pipeline phases and writes trained models to `models/`, evaluation plots to `reports/figures/`, and a metric comparison table to `reports/model_results.csv`.
-
-Start the inference API:
-
-```bash
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
-
-The Swagger UI is at http://localhost:8000/docs
-
-Start the analytics dashboard:
-
-```bash
-streamlit run dashboard/app.py
-```
-
-The dashboard is at http://localhost:8501
-
-Run the transaction simulator in a new terminal after the API is running:
-
-```bash
-python simulation/real_time_transactions.py --tps 2 --duration 0 --fraud-rate 0.05
-```
-
-View MLflow experiment history:
-
-```bash
-mlflow ui --port 5001
-```
-
-Run all services at once with Docker:
-
-```bash
-docker compose run --rm train
-docker compose up api dashboard mlflow
-```
-
----
-
-## API reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | /health | Liveness check with live fraud rate and P99 latency |
-| GET | /info | Model name, threshold, feature count, training metadata |
-| GET | /metrics | Operational metrics in JSON or Prometheus text format |
-| POST | /predict | Score a single transaction |
-| POST | /predict/batch | Score a CSV upload up to 10,000 rows |
-
-Risk tiers returned by the API:
-
-| Tier | Probability | Action |
-|---|---|---|
-| Low | Below 15% | Allow |
-| Medium | 15% to 40% | Soft review |
-| High | 40% to 70% | Manual review |
-| Critical | 70% and above | Auto-block |
-
-Example request:
-
-```bash
-curl -s -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
+    <!-- Example curl -->
+    <div class="code-block reveal" style="margin-top:28px;">
+      <div class="code-header">
+        <span class="code-lang">bash — example request</span>
+        <div class="code-dots">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-amber"></div>
+          <div class="dot dot-green"></div>
+        </div>
+      </div>
+      <pre><span class="fn">curl</span> -s -X <span class="kw">POST</span> http://localhost:<span class="num">8000</span>/predict \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
     "V1": -1.3598, "V2": -0.0728, "V3": 2.5364, "V4": 1.3782,
-    "V5": -0.3383, "V6":  0.4624, "V7": 0.2396, "V8": 0.0987,
-    "V9":  0.3638, "V10":-0.0902, "V11":-0.5516, "V12":-0.6178,
-    "V13":-0.9914, "V14":-0.3114, "V15": 1.4682, "V16":-0.4704,
-    "V17": 0.2079, "V18": 0.0258, "V19": 0.4039, "V20": 0.2514,
-    "V21":-0.0183, "V22": 0.2778, "V23":-0.1105, "V24": 0.0669,
-    "V25": 0.1285, "V26":-0.1891, "V27": 0.1336, "V28":-0.0211,
-    "Amount": 149.62,
-    "Time": 406.0
-  }'
-```
+    "Amount": 149.62, "Time": 406.0
+  }'</span>
 
-Example response:
-
-```json
+<span class="cm"># Response:</span>
 {
-  "prediction": "legitimate",
-  "probability": 0.032,
-  "risk_tier": "LOW",
-  "threshold_used": 0.40,
-  "message": "Transaction appears normal. No action required."
-}
-```
+  <span class="str">"prediction"</span>: <span class="str">"legitimate"</span>,
+  <span class="str">"probability"</span>: <span class="num">0.032</span>,
+  <span class="str">"risk_tier"</span>: <span class="str">"LOW"</span>,
+  <span class="str">"threshold_used"</span>: <span class="num">0.40</span>,
+  <span class="str">"message"</span>: <span class="str">"Transaction appears normal. No action required."</span>
+}</pre>
+    </div>
+  </div>
+</section>
 
-Add `?explain=true` to the request to receive SHAP feature contributions alongside the prediction.
+<!-- ═══════════════ SETUP ═══════════════ -->
+<section id="setup">
+  <div class="container">
+    <div class="section-label">Getting Started</div>
+    <h2 class="section-title reveal">Setup &amp; Commands</h2>
 
----
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="code-lang">bash — install</span>
+        <div class="code-dots">
+          <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+        </div>
+      </div>
+      <pre><span class="fn">git</span> clone https://github.com/RagannagariSiva/fraud-detection.git
+<span class="fn">cd</span> fraud-detection
 
-## Feature engineering
+python3 -m <span class="fn">venv</span> venv
+<span class="fn">source</span> venv/bin/activate
 
-The V1 through V28 columns in the Kaggle dataset are PCA-transformed components from the original transaction data, anonymised for cardholder privacy. The pipeline adds several derived features:
+<span class="fn">pip</span> install --upgrade pip
+<span class="fn">pip</span> install -r requirements.txt</pre>
+    </div>
 
-- `hour_of_day` and `is_night` — fraud skews heavily toward off-hours in card-present fraud studies
-- `log_amount` — compresses the extreme right tail of transaction amounts
-- `amount_z` — median absolute deviation z-score for amount outlier detection
-- `V1_V4`, `V12_V14`, `V1_V17` — interaction products between the highest-importance features
-- `V14_abs` — absolute value of V14, which is the single strongest fraud predictor in published analyses of this dataset
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="code-lang">bash — run</span>
+        <div class="code-dots">
+          <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+        </div>
+      </div>
+      <pre><span class="cm"># Train all 11 pipeline phases (~2 min on CPU)</span>
+<span class="fn">python</span> main.py
 
-These features are applied identically at training time and at inference time. The predictor applies feature engineering internally so the API caller only needs to send the 30 raw fields.
+<span class="cm"># Start inference API → http://localhost:8000/docs</span>
+<span class="fn">uvicorn</span> api.main:app --host <span class="num">0.0.0.0</span> --port <span class="num">8000</span>
 
----
+<span class="cm"># Start analytics dashboard → http://localhost:8501</span>
+<span class="fn">streamlit</span> run dashboard/app.py
 
-## Monitoring and drift detection
+<span class="cm"># Run transaction simulator (2 TPS, 5% fraud rate)</span>
+<span class="fn">python</span> simulation/real_time_transactions.py --tps <span class="num">2</span> --fraud-rate <span class="num">0.05</span>
 
-Drift is checked by comparing live feature distributions against the training baseline:
+<span class="cm"># Run all 39 tests</span>
+<span class="fn">pytest</span> tests/ -v
 
-| PSI value | Status |
-|---|---|
-| Below 0.10 | No significant change |
-| 0.10 to 0.25 | Moderate change, monitor closely |
-| Above 0.25 | Significant change, retraining recommended |
+<span class="cm"># Docker — full stack</span>
+<span class="fn">docker</span> compose run --rm train
+<span class="fn">docker</span> compose up api dashboard mlflow</pre>
+    </div>
 
-Run a manual drift check:
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="code-lang">makefile — shortcuts</span>
+        <div class="code-dots">
+          <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+        </div>
+      </div>
+      <pre>make <span class="fn">train</span>       <span class="cm"># train full pipeline</span>
+make <span class="fn">api</span>         <span class="cm"># start inference API</span>
+make <span class="fn">dashboard</span>   <span class="cm"># start Streamlit dashboard</span>
+make <span class="fn">simulate</span>    <span class="cm"># run transaction simulator</span>
+make <span class="fn">test</span>        <span class="cm"># run test suite with coverage</span>
+make <span class="fn">retrain</span>     <span class="cm"># drift-gated automated retraining</span>
+make <span class="fn">docker-up</span>   <span class="cm"># start all services in Docker</span>
+make <span class="fn">help</span>        <span class="cm"># full command reference</span></pre>
+    </div>
+  </div>
+</section>
 
-```bash
-python scripts/retrain.py --check-drift --dry-run
-```
+<!-- ═══════════════ TECH STACK ═══════════════ -->
+<section style="border-bottom:none;">
+  <div class="container">
+    <div class="section-label">Stack</div>
+    <h2 class="section-title reveal">Tech Stack</h2>
+    <div class="tech-grid reveal">
+      <div class="tech-pill">🐍 Python 3.10+</div>
+      <div class="tech-pill">⬡ XGBoost</div>
+      <div class="tech-pill">◈ scikit-learn</div>
+      <div class="tech-pill">⚡ FastAPI</div>
+      <div class="tech-pill">📊 Streamlit</div>
+      <div class="tech-pill">✦ MLflow</div>
+      <div class="tech-pill">🔬 Optuna</div>
+      <div class="tech-pill">🧠 SHAP</div>
+      <div class="tech-pill">⚖ imbalanced-learn</div>
+      <div class="tech-pill">📐 Pydantic v2</div>
+      <div class="tech-pill">📉 scipy</div>
+      <div class="tech-pill">🧪 pytest</div>
+      <div class="tech-pill">🐳 Docker</div>
+      <div class="tech-pill">📦 ruff</div>
+    </div>
 
-Run drift-gated automated retraining:
+    <div style="margin-top:32px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#6b7280; line-height:1.7;">
+      <div style="color:var(--accent); margin-bottom:6px;">// DATASET</div>
+      <a href="https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud" target="_blank" style="color:#60a5fa; text-decoration:none;">Credit Card Fraud Detection</a> by ULB Machine Learning Group · Open Database License<br>
+      284,807 transactions · September 2013 · European cardholders · 0.172% fraud rate (492 of 284,807)<br>
+      V1–V28 are PCA-transformed components. Amount and Time are raw values. Cannot be redistributed.
+    </div>
+  </div>
+</section>
 
-```bash
-python scripts/retrain.py --check-drift --min-improvement 0.005
-```
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <div class="container">
+    <div class="logo">FraudGuard</div>
+    <p>Built by <a href="https://github.com/RagannagariSiva" target="_blank">Ragannagari Siva</a> · <a href="https://github.com/RagannagariSiva/fraud-detection" target="_blank">GitHub Repository</a></p>
+    <p style="margin-top:6px;">Production-grade ML system · End-to-end · XGBoost · FastAPI · Streamlit</p>
+  </div>
+</footer>
 
-This skips retraining if no drift is detected and restores the previous model if the new one does not improve PR-AUC by at least 0.005.
+<script>
+  // Cursor glow
+  const glow = document.getElementById('cursorGlow');
+  document.addEventListener('mousemove', e => {
+    glow.style.left = e.clientX + 'px';
+    glow.style.top = e.clientY + 'px';
+  });
 
-Live metrics are available at GET /metrics while the API is running, covering fraud rate, error rate, throughput, and P50, P95, P99 latency over a rolling 5-minute window.
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 60);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
 
----
+  // TOC dots active state
+  const sections = ['hero','dashboard','performance','impact','architecture','api','setup'];
+  const tocDots = document.querySelectorAll('.toc-dot');
 
-## Tests
+  const secObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        tocDots.forEach(d => d.classList.remove('active'));
+        const active = document.querySelector(`.toc-dot[data-target="${id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.4 });
 
-```bash
-pytest tests/ -v
-```
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) secObserver.observe(el);
+  });
 
-39 tests covering preprocessing, feature engineering, the predictor, drift detection, monitoring, API endpoints, and a full end-to-end pipeline integration test. The integration test trains a small model from scratch, verifies all artifacts are created, loads the predictor, and scores a transaction without any external dependencies.
-
----
-
-## Common commands
-
-```bash
-make train        # train the full pipeline
-make api          # start the inference API
-make dashboard    # start the Streamlit dashboard
-make simulate     # run the transaction simulator
-make test         # run the test suite with coverage
-make retrain      # drift-gated automated retraining
-make docker-up    # start all services in Docker
-make help         # full command reference
-```
-
----
-
-## Tech stack
-
-Python 3.10+ · scikit-learn · XGBoost · imbalanced-learn · FastAPI · Pydantic v2 · Streamlit · MLflow · Optuna · SHAP · scipy · pytest · ruff · Docker
-
----
-
-## Dataset
-
-[Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) by the ULB Machine Learning Group, released under the Open Database License.
-
-284,807 transactions collected over two days in September 2013 by European cardholders. 492 are fraudulent, which is 0.172% of all transactions. Features V1 through V28 are the principal components of the original transaction data. Amount and Time are the raw values. The dataset cannot be redistributed — download it directly from Kaggle and place it at `data/raw/creditcard.csv`.
+  function scrollTo(id) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
