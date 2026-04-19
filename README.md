@@ -54,15 +54,13 @@ From raw transaction data → live inference API → real-time dashboard → dri
 ## Live Working — Fraud Detection Pages
 
 Three core views that power the detection system:
-
 <br/>
-
 <table>
   <tr>
     <td width="33%" align="center">
       <img src="imgs/DashBord.png" width="100%" alt="Dashboard Overview"/>
       <br/><br/>
-      <b> Dashboard Overview</b><br/>
+      <b>Dashboard Overview</b><br/>
       Total alerts · Critical & high-risk counts · Average fraud probability · Financial exposure — all in real time.
     </td>
     <td width="33%" align="center">
@@ -74,7 +72,7 @@ Three core views that power the detection system:
     <td width="33%" align="center">
       <img src="imgs/Machine%20Learning.png" width="100%" alt="Machine Learning Model Analysis"/>
       <br/><br/>
-      <b> Machine Learning Analysis</b><br/>
+      <b>Machine Learning Analysis</b><br/>
       PR curves · ROC curves · Confusion matrix · SHAP feature importance plots.
     </td>
   </tr>
@@ -82,12 +80,10 @@ Three core views that power the detection system:
 
 ---
 
-##  Dashboard — All Screen References
+## Dashboard — All Screen References
 
 All dashboard pages shown below, arranged two per row:
-
 <br/>
-
 <table>
   <tr>
     <td width="50%" align="center">
@@ -137,21 +133,19 @@ All dashboard pages shown below, arranged two per row:
   <tr>
     <td width="50%" align="center">
       <img src="imgs/Screen%20short-7.png" width="100%" alt="Screenshot 7"/>
-      <br/><br/><center>
+      <br/><br/>
       <b>Screenshot 7 — Model Health</b><br/>
       Live model health status — prediction count, uptime, scaler and model load confirmation.
     </td>
     <td width="50%" align="center">
       <br/><br/><br/><br/>
-      <b> Dataset</b><br/>
+      <b>Dataset</b><br/>
       <a href="https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud">Credit Card Fraud Detection</a> by ULB Machine Learning Group.<br/>
       284,807 transactions · 492 fraud cases · 0.172% fraud rate.<br/>
       Download from Kaggle → place at <code>data/raw/creditcard.csv</code>
     </td>
   </tr>
 </table>
-<
-
 ---
 
 ## Why This Is Production-Grade
