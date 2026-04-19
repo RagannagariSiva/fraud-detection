@@ -30,7 +30,7 @@ From raw transaction data → live inference API → real-time dashboard → dri
 | **F1 Score** | `86.8%` |
 | **Fraud Caught** | `~$39,200` |
 | **Net ROI** | `~3,400%` |
-| **Test Suite** | `39 / 39 ✅` |
+| **Test Suite** | `39 / 39 ` |
 
 > **Why PR-AUC and not accuracy?** A model that classifies every transaction as legitimate
 > achieves **99.83% accuracy** while catching **zero fraud**.
@@ -65,7 +65,7 @@ Three core views that power the detection system:
     <td width="33%" align="center">
       <img src="imgs/Local%20host.png" width="100%" alt="Live Prediction — Localhost"/>
       <br/><br/>
-      <b>📡 Live Prediction</b><br/>
+      <b> Live Prediction</b><br/>
       Score any transaction manually against the model. Returns probability gauge, risk tier, and SHAP explanation.
     </td>
     <td width="33%" align="center">
