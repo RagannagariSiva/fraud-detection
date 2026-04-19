@@ -376,8 +376,6 @@ fraud-detection/
 
 <div align="center">
 
-Built by [Ragannagari Siva](https://github.com/RagannagariSiva) &nbsp;·&nbsp; [GitHub Repository](https://github.com/RagannagariSiva/fraud-detection)
-
 *Production-grade ML · End-to-end · XGBoost · FastAPI · Streamlit · MLflow*
 
 </div>
