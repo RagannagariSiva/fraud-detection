@@ -271,10 +271,10 @@ class FraudPredictor:
         # Scale Amount and Time — must preserve training-column order for the scaler
         cols_to_scale = [c for c in self._scale_cols if c in t]
         if cols_to_scale:
-            full_raw = np.zeros((1, len(self._scale_cols)))
-            for i, col in enumerate(self._scale_cols):
-                if col in t:
-                    full_raw[0, i] = t[col]
+            full_raw = pd.DataFrame(
+                [[t.get(col, 0.0) for col in self._scale_cols]],
+                columns=list(self._scale_cols)
+            )
             scaled_full = self.scaler.transform(full_raw)[0]
             for i, col in enumerate(self._scale_cols):
                 if col in t:
